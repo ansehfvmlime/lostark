@@ -14,7 +14,12 @@
  *   섹션 2: 불확실한 게임 수치를 추측하지 않는다).** 재료 환산 골드 기능의 구조는
  *   준비되어 있으나, 사용자가 실제 수치를 확인해 채워 넣기 전까지는 항상 0으로 계산된다.
  * - 서막(붉어진 백야의 나선)은 골드 보상이 없어(커뮤니티 소스 기준) 목록에서 제외했다.
- * - 그림자 레이드(세르카, 벨가르딘) 등은 신뢰할 수 있는 수치를 찾지 못해 이번 버전에서는
+ * - 그림자 레이드 세르카(노말/하드/나이트메어)는 입장레벨을 공식 가이드로 확인해 추가했다
+ *   (https://m-lostark.game.onstove.com/GameGuide/Pages/그림자 레이드, 확인일 2026-07-04).
+ *   골드 수치는 카제로스와 동일하게 lobal.kr 저신뢰 소스를 사용했다. 하드/나이트메어
+ *   전용 재료 "고통의 가시"는 Markets API로 검색되지 않아(귀속 추정) 재료 목록에서
+ *   제외했다.
+ * - 벨가르딘 등 다른 그림자 레이드는 신뢰할 수 있는 수치를 찾지 못해 이번 버전에서는
  *   제외했다. 추후 실제 수치 확인 후 추가한다.
  *
  * 게임 룰: 캐릭터당 주 3회까지만 레이드 클리어 골드 보상을 받을 수 있다 (공식 가이드
@@ -22,7 +27,7 @@
  * 자동 선택" 로직은 이 게임 규칙과 일치한다.
  */
 
-export type RaidDifficulty = "NORMAL" | "HARD";
+export type RaidDifficulty = "NORMAL" | "HARD" | "NIGHTMARE";
 
 export type RaidMaterialReward = {
   itemName: string;
@@ -105,6 +110,50 @@ function kazerosAct(params: {
   ];
 }
 
+function shadowRaidSerka(): RaidReward[] {
+  const totalGold = 32_000;
+  const boundGold = Math.round(totalGold / 2);
+  const tradableGold = totalGold - boundGold;
+  const weeklyLockoutKey = "shadow-serka";
+
+  const base = {
+    raidGroup: "그림자 레이드",
+    weeklyLockoutKey,
+    boundGold,
+    tradableGold,
+    materials: [] as RaidMaterialReward[],
+    gameVersion: "2026 시즌 (확인일 2026-07-04 기준 최신 패치)",
+    verifiedAt: "2026-07-04",
+    source: "COMMUNITY" as const,
+    confidence: "LOW" as const,
+    notes: GOLD_SOURCE_NOTE,
+  };
+
+  return [
+    {
+      id: "shadow-serka-normal",
+      raidName: "그림자 레이드 세르카 (노말)",
+      difficulty: "NORMAL",
+      minItemLevel: 1710,
+      ...base,
+    },
+    {
+      id: "shadow-serka-hard",
+      raidName: "그림자 레이드 세르카 (하드)",
+      difficulty: "HARD",
+      minItemLevel: 1730,
+      ...base,
+    },
+    {
+      id: "shadow-serka-nightmare",
+      raidName: "그림자 레이드 세르카 (나이트메어)",
+      difficulty: "NIGHTMARE",
+      minItemLevel: 1740,
+      ...base,
+    },
+  ];
+}
+
 export const RAID_REWARDS: RaidReward[] = [
   ...kazerosAct({
     act: 1,
@@ -141,6 +190,7 @@ export const RAID_REWARDS: RaidReward[] = [
     hardItemLevel: 1730,
     totalGold: 32_000,
   }),
+  ...shadowRaidSerka(),
 ];
 
 /** 캐릭터당 주간 골드 보상 획득 가능 레이드 수 (공식 가이드 확인, 2026-07-04). */

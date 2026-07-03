@@ -109,8 +109,10 @@ test.describe("콘텐츠 수익 효율 계산기", () => {
     await page.getByRole("button", { name: "선택한 캐릭터 계산하기" }).click();
     await expect(page.getByText("콘텐츠 수익 효율 계산 결과")).toBeVisible();
 
-    // 상위 3개(종막 32,000 + 4막 27,000 + 3막 21,000) = 80,000골드
-    await expect(page.locator("span.text-xl")).toHaveText("80,000 골드");
+    // 아이템레벨 1805는 세르카(나이트메어 1740)에도 입장 가능하다. 상위 3개는
+    // 종막(32,000)과 세르카(32,000)가 동률로 묶이고 그 다음 4막(27,000)이 뽑힌다
+    // = 91,000골드
+    await expect(page.locator("span.text-xl")).toHaveText("91,000 골드");
     await expect(page.getByText(/주 3회/)).toBeVisible();
     await expect(page.getByText(/저신뢰/)).toBeVisible();
 
