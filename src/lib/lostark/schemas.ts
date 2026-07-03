@@ -26,3 +26,15 @@ export const characterProfileSchema = z.object({
 }).passthrough();
 
 export type CharacterProfile = z.infer<typeof characterProfileSchema>;
+
+/**
+ * 캐릭터명 입력 검증. API route(서버)와 검색 폼(클라이언트) 양쪽에서 공유해서 쓴다
+ * (CLAUDE.md 섹션 12: 사용자 입력값은 Zod로 validation).
+ */
+export const characterNameSchema = z
+  .string()
+  .trim()
+  .min(1, "캐릭터명을 입력해주세요.")
+  .max(30, "캐릭터명이 너무 깁니다.");
+
+export type CharacterNameInput = z.infer<typeof characterNameSchema>;

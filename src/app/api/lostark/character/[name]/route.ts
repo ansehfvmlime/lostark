@@ -1,20 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 
 import { LostArkApiError, getCharacterProfile } from "@/lib/lostark/client";
 import { CACHE_TTL_MS, withCache } from "@/lib/lostark/cache";
+import { characterNameSchema } from "@/lib/lostark/schemas";
 import { checkRateLimit } from "@/lib/utils/rateLimit";
+import type { CharacterProfileResponse } from "@/types/character";
 
 // 서버 API route 자체 rate limit (CLAUDE.md 섹션 12). 외부 API 제한(분당 100회)보다
 // 보수적으로 잡아, 한 클라이언트가 우리 서버 자원을 독점하지 못하게 한다.
 const ROUTE_RATE_LIMIT_MAX_REQUESTS = 30;
 const ROUTE_RATE_LIMIT_WINDOW_MS = 60 * 1000;
-
-const characterNameSchema = z
-  .string()
-  .trim()
-  .min(1, "캐릭터명을 입력해주세요.")
-  .max(30, "캐릭터명이 너무 깁니다.");
 
 function getClientIp(request: NextRequest): string {
   // Next.js 15+에서 NextRequest.ip가 제거되었다. 배포 플랫폼이 주입하는 헤더를 사용한다.
@@ -60,14 +55,15 @@ export async function GET(
       () => getCharacterProfile(characterName)
     );
 
-    return NextResponse.json({
+    const responseBody: CharacterProfileResponse = {
       character: value.profile,
       dataTimestamp: new Date().toISOString(),
       cacheHit,
       sources: [
-        { field: "character", origin: "API" as const, fetchedAt: new Date().toISOString() },
+        { field: "character", origin: "API", fetchedAt: new Date().toISOString() },
       ],
-    });
+    };
+    return NextResponse.json(responseBody);
   } catch (error) {
     if (error instanceof LostArkApiError) {
       const status = errorTypeToHttpStatus(error.type, error.status);
