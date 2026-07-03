@@ -40,9 +40,11 @@ const CALCULATORS: CalculatorEntry[] = [
     status: "planned",
   },
   {
-    title: "콘텐츠 수익 계산기",
-    description: "레이드/컨텐츠 시간당 수익 계산 (준비 중)",
-    status: "planned",
+    title: "콘텐츠 수익 효율 계산기",
+    description:
+      "원정대 캐릭터별 입장 가능한 레이드의 귀속·거래가능 골드와 재료 환산 골드를 계산합니다.",
+    href: "/calculators/content-profit",
+    status: "available",
   },
   {
     title: "치명타 전투 효율 계산기",

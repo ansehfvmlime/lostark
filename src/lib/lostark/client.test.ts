@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LostArkApiError, getCharacterProfile, searchMarketItems } from "./client";
+import {
+  LostArkApiError,
+  getCharacterProfile,
+  getCharacterSiblings,
+  searchMarketItems,
+} from "./client";
 
 function jsonResponse(
   body: unknown,
@@ -211,5 +216,59 @@ describe("searchMarketItems", () => {
     await expect(
       searchMarketItems({ categoryCode: 50010 })
     ).rejects.toMatchObject({ type: "INVALID_RESPONSE" });
+  });
+});
+
+describe("getCharacterSiblings", () => {
+  beforeEach(() => {
+    process.env.LOSTARK_API_BASE_URL = "https://developer-lostark.game.onstove.com";
+    process.env.LOSTARK_API_JWT = "test-jwt";
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.LOSTARK_API_BASE_URL;
+    delete process.env.LOSTARK_API_JWT;
+  });
+
+  it("정상 응답을 CharacterSibling 배열로 파싱한다", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse([
+          {
+            ServerName: "카마인",
+            CharacterName: "유우시",
+            CharacterLevel: 70,
+            CharacterClassName: "스트라이커",
+            ItemAvgLevel: "1,805.00",
+          },
+        ])
+      )
+    );
+
+    const result = await getCharacterSiblings("유우시");
+
+    expect(result.siblings).toHaveLength(1);
+    expect(result.siblings[0]?.CharacterName).toBe("유우시");
+  });
+
+  it("존재하지 않는 캐릭터는 HTTP 200 + 빈 배열을 그대로 반환한다 (armories와 다른 동작)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse([])));
+
+    const result = await getCharacterSiblings("없는캐릭터");
+
+    expect(result.siblings).toEqual([]);
+  });
+
+  it("스키마와 맞지 않는 응답은 INVALID_RESPONSE로 변환한다", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse({ unexpected: "shape" }))
+    );
+
+    await expect(getCharacterSiblings("아무개")).rejects.toMatchObject({
+      type: "INVALID_RESPONSE",
+    });
   });
 });

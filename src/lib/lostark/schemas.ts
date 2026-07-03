@@ -72,3 +72,22 @@ export const marketSearchResponseSchema = z
   .passthrough();
 
 export type MarketSearchResponse = z.infer<typeof marketSearchResponseSchema>;
+
+/**
+ * GET /characters/{characterName}/siblings 응답 스키마. 실 API 호출로 확정했다
+ * (docs/API_NOTES.md 참고, 확인일 2026-07-04). armories 하위가 아니라 최상위
+ * /characters/ 경로임에 주의.
+ */
+export const characterSiblingSchema = z
+  .object({
+    ServerName: z.string(),
+    CharacterName: z.string(),
+    CharacterLevel: z.number(),
+    CharacterClassName: z.string(),
+    ItemAvgLevel: z.union([z.string(), z.number()]),
+  })
+  .passthrough();
+
+export type CharacterSibling = z.infer<typeof characterSiblingSchema>;
+
+export const characterSiblingsResponseSchema = z.array(characterSiblingSchema);

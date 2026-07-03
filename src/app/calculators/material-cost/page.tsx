@@ -6,78 +6,18 @@ import { MaterialCostForm } from "@/components/calculators/MaterialCostForm";
 import { MaterialCostResultCard } from "@/components/calculators/MaterialCostResultCard";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { HONING_MATERIAL_CATALOG } from "@/data/config/materialCategories";
 import {
   calculateMaterialCost,
-  resolveUnitPriceFromMarketItem,
   type MaterialCostInput,
   type MaterialCostResult,
 } from "@/lib/calculators/materialCost";
-import type { MarketSearchApiResponse } from "@/types/market";
+import { resolveMarketPrice } from "@/lib/utils/marketPrice";
 
 type CalcState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "success"; result: MaterialCostResult }
   | { status: "error"; message: string };
-
-async function resolveMaterialPrice(
-  itemName: string
-): Promise<MaterialCostInput["materials"][number]> {
-  const catalogEntry = HONING_MATERIAL_CATALOG.find(
-    (entry) => entry.itemName === itemName
-  );
-  const categoryCode = catalogEntry?.categoryCode ?? 50010;
-
-  try {
-    const response = await fetch(
-      `/api/lostark/markets/search?categoryCode=${categoryCode}&itemName=${encodeURIComponent(itemName)}`
-    );
-
-    if (!response.ok) {
-      return {
-        itemName,
-        requiredQuantity: 0,
-        ownedQuantity: 0,
-        unitPrice: 0,
-        priceOrigin: "API",
-        priceUnavailable: true,
-      };
-    }
-
-    const data = (await response.json()) as MarketSearchApiResponse;
-    const matched = data.items.find((item) => item.Name === itemName);
-
-    if (!matched) {
-      return {
-        itemName,
-        requiredQuantity: 0,
-        ownedQuantity: 0,
-        unitPrice: 0,
-        priceOrigin: "API",
-        priceUnavailable: true,
-      };
-    }
-
-    return {
-      itemName,
-      requiredQuantity: 0,
-      ownedQuantity: 0,
-      unitPrice: resolveUnitPriceFromMarketItem(matched),
-      priceOrigin: "API",
-      priceFetchedAt: data.dataTimestamp,
-    };
-  } catch {
-    return {
-      itemName,
-      requiredQuantity: 0,
-      ownedQuantity: 0,
-      unitPrice: 0,
-      priceOrigin: "API",
-      priceUnavailable: true,
-    };
-  }
-}
 
 export default function MaterialCostCalculatorPage() {
   const [state, setState] = useState<CalcState>({ status: "idle" });
@@ -87,7 +27,7 @@ export default function MaterialCostCalculatorPage() {
 
     try {
       const priceLookups = await Promise.all(
-        values.rows.map((row) => resolveMaterialPrice(row.itemName))
+        values.rows.map((row) => resolveMarketPrice(row.itemName))
       );
 
       const materials: MaterialCostInput["materials"] = values.rows.map(

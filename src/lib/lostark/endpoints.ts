@@ -13,3 +13,8 @@ export function characterProfilePath(characterName: string): string {
 export function marketsSearchPath(): string {
   return "/markets/items";
 }
+
+/** GET /characters/{characterName}/siblings (armories 하위 아님) */
+export function characterSiblingsPath(characterName: string): string {
+  return `/characters/${encodeURIComponent(characterName)}/siblings`;
+}

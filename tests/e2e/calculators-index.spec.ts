@@ -10,8 +10,9 @@ test.describe("계산기 목록", () => {
       page.getByRole("heading", { name: "계산기 목록" })
     ).toBeVisible();
     await expect(page.getByText("재료 구매 비용 계산기")).toBeVisible();
-    await expect(page.getByText("제공 중")).toBeVisible();
-    // 준비 중 계산기는 여러 개이므로 첫 번째만 확인
+    await expect(page.getByText("콘텐츠 수익 효율 계산기")).toBeVisible();
+    // 제공 중/준비 중 계산기가 각각 여러 개이므로 첫 번째만 확인
+    await expect(page.getByText("제공 중").first()).toBeVisible();
     await expect(page.getByText("준비 중").first()).toBeVisible();
 
     // 준비 중 계산기 버튼은 비활성화되어 있어야 한다
@@ -24,7 +25,10 @@ test.describe("계산기 목록", () => {
     page,
   }) => {
     await page.goto("/calculators");
-    await page.getByRole("button", { name: "계산기 열기" }).click();
+    await page
+      .getByRole("button", { name: "계산기 열기" })
+      .first()
+      .click();
     await expect(page).toHaveURL(/\/calculators\/material-cost$/);
   });
 });

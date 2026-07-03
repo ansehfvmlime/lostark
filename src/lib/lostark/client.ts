@@ -1,10 +1,16 @@
 import "server-only";
 
-import { characterProfilePath, marketsSearchPath } from "./endpoints";
+import {
+  characterProfilePath,
+  characterSiblingsPath,
+  marketsSearchPath,
+} from "./endpoints";
 import {
   characterProfileSchema,
+  characterSiblingsResponseSchema,
   marketSearchResponseSchema,
   type CharacterProfile,
+  type CharacterSibling,
   type MarketSearchResponse,
 } from "./schemas";
 
@@ -245,4 +251,31 @@ export async function searchMarketItems(
   }
 
   return { result: parsed.data, rateLimit };
+}
+
+export type CharacterSiblingsResult = {
+  siblings: CharacterSibling[];
+  rateLimit: RateLimitInfo;
+};
+
+/** GET /characters/{characterName}/siblings — 같은 원정대(계정)의 전체 캐릭터 목록 */
+export async function getCharacterSiblings(
+  characterName: string
+): Promise<CharacterSiblingsResult> {
+  const { data, rateLimit } = await requestLostArkApi(
+    characterSiblingsPath(characterName)
+  );
+
+  // 실제 API로 확인된 동작(2026-07-04): 존재하지 않는 캐릭터는 armories/profiles와 달리
+  // null이 아니라 HTTP 200 + 빈 배열 []을 반환한다. docs/API_NOTES.md 참고.
+  const parsed = characterSiblingsResponseSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new LostArkApiError(
+      "INVALID_RESPONSE",
+      "원정대 캐릭터 목록 응답 형식이 예상과 다릅니다.",
+      { cause: parsed.error }
+    );
+  }
+
+  return { siblings: parsed.data, rateLimit };
 }

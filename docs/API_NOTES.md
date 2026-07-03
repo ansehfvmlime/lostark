@@ -111,7 +111,49 @@ Zod 스키마(`src/lib/lostark/schemas.ts`)에 반영한 필드:
 - 재련 재료 카탈로그(이름/ID/카테고리 코드)는 `src/data/config/materialCategories.ts`에
   실 API 조회로 확인된 33개 아이템 전체를 기록했다 (`CategoryCode: 50010`).
 
+### `GET /characters/{characterName}/siblings`
+
+- 출처: 실 API 호출로 확정 (확인일 2026-07-04). 공식 문서 usage-guide 페이지에는
+  샘플이 없었다.
+- **`/armories/` 하위가 아니라 최상위 `/characters/` 경로**임에 주의 (armory profile과
+  헷갈리기 쉽다).
+- 같은 원정대(계정)의 전체 캐릭터 목록을 배열로 반환한다.
+- **실제 동작**: 존재하지 않는 캐릭터명으로 요청해도 `armories/profiles`처럼 `null`을
+  반환하지 않고, `HTTP 200` + **빈 배열 `[]`**을 반환한다 (실측 확인, 두 endpoint의
+  "없음" 표현 방식이 서로 다르므로 각각 별도 처리했다).
+- 응답 필드(배열 원소): `ServerName`(string), `CharacterName`(string),
+  `CharacterLevel`(number), `CharacterClassName`(string),
+  `ItemAvgLevel`(string, 콤마 포함 — armory profile과 동일 포맷).
+- 구현 위치: `src/lib/lostark/endpoints.ts`(`characterSiblingsPath`),
+  `src/lib/lostark/schemas.ts`(`characterSiblingSchema`),
+  `src/lib/lostark/client.ts`(`getCharacterSiblings`),
+  `src/app/api/lostark/character/[name]/siblings/route.ts`.
+
+## 게임 데이터 리서치 (콘텐츠 수익 계산기, Phase 5)
+
+`src/data/config/raids.ts`에 하드코딩한 카제로스 레이드 보상 데이터의 출처/신뢰도:
+
+- **입장 아이템레벨** (1~4막, 종막의 노말/하드): 공식 게임 가이드
+  `m-lostark.game.onstove.com/GameGuide/Pages/카제로스 레이드`에서 확인 (확인일
+  2026-07-04, `source: OFFICIAL_PATCH_NOTE` 수준 신뢰도).
+- **캐릭터당 주 3회 골드 보상 제한**: 공식 게임 가이드 "엔드 콘텐츠 현황 확인" 페이지에서
+  확인 (확인일 2026-07-04). 계산기의 "레이드 3개 자동 선택" 로직이 이 규칙과 일치하도록
+  구현했다.
+- **귀속/거래가능 골드 수치**: `lobal.kr/tips/raid/raid-reward` (커뮤니티) 1건에서만
+  확인했다. 리서치 중 다른 출처(공식 검색 요약, 영문 커뮤니티 등)에서 같은 레이드에 대해
+  서로 다른 골드 수치가 나왔다 — 패치로 여러 차례 조정된 이력이 있는 것으로 보이며,
+  어느 수치가 "현재" 값인지 자동화된 검색으로는 교차검증하지 못했다. **`confidence: LOW`로
+  명시했고, 사용자에게도 이 사실을 알리고 진행 여부를 확인받았다.**
+- **드랍 재료 수량**: 운명의 파괴석/수호석/파편/돌파석 등이 거래소에서 실제로 거래 가능함은
+  Markets API로 확인했지만(막·난이도별 정확한 드랍 개수는 모든 출처가 이미지 표라서 텍스트로
+  확인하지 못했다. `raids.ts`에는 빈 배열로 남겨두었다 (CLAUDE.md 섹션 2: 불확실한 게임
+  수치를 추측하지 않는다 — 저신뢰 추정치조차 없이 아예 비워둠).
+- 아크 그리드 코어, 업화의 쐐기돌, 카르마의 잔영 등 막 전용 제작 재료는 Markets API로
+  검색되지 않았다 (귀속/비거래 아이템으로 판단) — 재료 환산 골드 대상에서 제외했다.
+- 서막(붉어진 백야의 나선), 그림자 레이드(세르카, 벨가르딘) 등은 신뢰할 수 있는 수치를
+  찾지 못해 이번 버전 범위에서 제외했다.
+
 ## 아직 대조하지 않은 endpoint
 
-Auctions, News, Characters(형제 캐릭터 목록), Gamecontents 등은 아직 착수하지 않았다.
-착수 시 이 문서에 동일한 형식으로 추가한다.
+Auctions, News, Gamecontents 등은 아직 착수하지 않았다. 착수 시 이 문서에 동일한 형식으로
+추가한다.
