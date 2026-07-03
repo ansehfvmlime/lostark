@@ -1,7 +1,12 @@
 import "server-only";
 
-import { characterProfilePath } from "./endpoints";
-import { characterProfileSchema, type CharacterProfile } from "./schemas";
+import { characterProfilePath, marketsSearchPath } from "./endpoints";
+import {
+  characterProfileSchema,
+  marketSearchResponseSchema,
+  type CharacterProfile,
+  type MarketSearchResponse,
+} from "./schemas";
 
 /**
  * server-only 가드: 이 모듈이 실수로 클라이언트 번들에 포함되면 빌드가 실패한다.
@@ -127,7 +132,7 @@ async function requestLostArkApi(
     case 404:
       throw new LostArkApiError(
         "NOT_FOUND",
-        "요청한 캐릭터를 찾을 수 없습니다.",
+        "요청한 리소스를 찾을 수 없습니다.",
         { status: 404 }
       );
     case 415:
@@ -202,4 +207,42 @@ export async function getCharacterProfile(
   }
 
   return { profile: parsed.data, rateLimit };
+}
+
+export type MarketSearchParams = {
+  categoryCode: number;
+  /** 부분 일치 검색 (실측 확인, docs/API_NOTES.md 참고) */
+  itemName?: string;
+  pageNo?: number;
+};
+
+export type MarketSearchResult = {
+  result: MarketSearchResponse;
+  rateLimit: RateLimitInfo;
+};
+
+/** POST /markets/items */
+export async function searchMarketItems(
+  params: MarketSearchParams
+): Promise<MarketSearchResult> {
+  const { data, rateLimit } = await requestLostArkApi(marketsSearchPath(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      CategoryCode: params.categoryCode,
+      ...(params.itemName ? { ItemName: params.itemName } : {}),
+      ...(params.pageNo ? { PageNo: params.pageNo } : {}),
+    }),
+  });
+
+  const parsed = marketSearchResponseSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new LostArkApiError(
+      "INVALID_RESPONSE",
+      "거래소 시세 응답 형식이 예상과 다릅니다.",
+      { cause: parsed.error }
+    );
+  }
+
+  return { result: parsed.data, rateLimit };
 }

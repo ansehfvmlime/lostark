@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LostArkApiError, getCharacterProfile } from "./client";
+import { LostArkApiError, getCharacterProfile, searchMarketItems } from "./client";
 
 function jsonResponse(
   body: unknown,
@@ -123,5 +123,93 @@ describe("getCharacterProfile", () => {
     await expect(getCharacterProfile("아무개")).rejects.toMatchObject({
       type: "INVALID_RESPONSE",
     });
+  });
+});
+
+describe("searchMarketItems", () => {
+  beforeEach(() => {
+    process.env.LOSTARK_API_BASE_URL = "https://developer-lostark.game.onstove.com";
+    process.env.LOSTARK_API_JWT = "test-jwt";
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.LOSTARK_API_BASE_URL;
+    delete process.env.LOSTARK_API_JWT;
+  });
+
+  it("정상 응답을 MarketSearchResponse로 파싱하고 POST + CategoryCode를 보낸다", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        PageNo: 1,
+        PageSize: 10,
+        TotalCount: 1,
+        Items: [
+          {
+            Id: 66102004,
+            Name: "파괴강석",
+            Grade: "일반",
+            BundleCount: 100,
+            TradeRemainCount: null,
+            YDayAvgPrice: 16.7,
+            RecentPrice: 17,
+            CurrentMinPrice: 17,
+          },
+        ],
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await searchMarketItems({
+      categoryCode: 50010,
+      itemName: "파괴강석",
+    });
+
+    expect(result.result.Items[0]?.Name).toBe("파괴강석");
+    const [url, requestInit] = fetchMock.mock.calls[0]!;
+    expect(url).toContain("/markets/items");
+    expect(requestInit.method).toBe("POST");
+    expect(JSON.parse(requestInit.body as string)).toMatchObject({
+      CategoryCode: 50010,
+      ItemName: "파괴강석",
+    });
+  });
+
+  it("검색 결과가 없으면(HTTP 200 + 빈 배열) 빈 목록을 그대로 반환한다", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({ PageNo: 1, PageSize: 10, TotalCount: 0, Items: [] })
+      )
+    );
+
+    const result = await searchMarketItems({
+      categoryCode: 50010,
+      itemName: "존재하지않는재료",
+    });
+
+    expect(result.result.Items).toEqual([]);
+  });
+
+  it("CategoryCode 누락 등 잘못된 요청(400)은 에러로 변환한다", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse({}, { status: 400 }))
+    );
+
+    await expect(
+      searchMarketItems({ categoryCode: 50010 })
+    ).rejects.toBeInstanceOf(LostArkApiError);
+  });
+
+  it("스키마와 맞지 않는 응답은 INVALID_RESPONSE로 변환한다", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse({ unexpected: "shape" }))
+    );
+
+    await expect(
+      searchMarketItems({ categoryCode: 50010 })
+    ).rejects.toMatchObject({ type: "INVALID_RESPONSE" });
   });
 });

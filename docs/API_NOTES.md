@@ -69,8 +69,49 @@ Zod 스키마(`src/lib/lostark/schemas.ts`)에 반영한 필드:
 - 이 endpoint가 제공하는 게임 버전/패치 시점을 응답에서 직접 알 수 있는 필드는 발견하지
   못했다.
 
+### `POST /markets/items`
+
+- 출처: `developer-lostark.game.onstove.com/usage-guide` curl 예시 (확인일 2026-07-04) +
+  실 API 호출로 요청/응답 스키마 확정.
+- 요청 바디: `{ CategoryCode: number, ItemName?: string, PageNo?: number, ... }`.
+  - `CategoryCode`는 **필수**다. 누락 시 `400`을 반환함을 실측으로 확인했다
+    (`{ ItemName: "파괴강석" }`만 보내면 400).
+  - `ItemName`은 부분 일치 검색으로 동작한다 (`ItemName: "파괴강석"` → "파괴강석",
+    "정제된 파괴강석" 둘 다 매칭).
+  - 결과가 없으면 에러가 아니라 `HTTP 200` + `{ TotalCount: 0, Items: [] }`을 반환한다
+    (캐릭터 endpoint의 `null` 응답과는 다른 패턴이므로 주의).
+- **카테고리 코드 계층 확인**: `GET /markets/options`로 전체 카테고리 트리를 확인했다.
+  강화 재료는 `50000`(강화 재료) 아래 `50010`(재련 재료), `50020`(재련 추가 재료),
+  `51000`(기타 재료), `51100`(무기 진화 재료), `230000`(아크 그리드 재료) 서브카테고리로
+  구성된다. **실측 결과, 상위 카테고리 코드(`50000`)로 검색해도 하위 카테고리 아이템이
+  전부 매칭된다** (`CategoryCode: 50000, ItemName: "태양의 은총"`으로 50020 소속 아이템을
+  찾음). 이 프로젝트에서는 재련 재료(`50010`)만 우선 다루므로 매핑 테이블에는 `50010`을
+  명시적으로 기록해 두었다 (상위 코드로 뭉뚱그리지 않고 실제 소속 카테고리를 남긴다).
+- **응답 필드**:
+
+  | 필드 | 타입 | 비고 |
+  |---|---|---|
+  | `Id` | number | 아이템 고유 ID |
+  | `Name` | string | |
+  | `Grade` | string | 등급(일반/고급/희귀/영웅/전설/유물/고대/에스더) |
+  | `Icon` | string | |
+  | `BundleCount` | number | **묶음 판매 수량.** 재련 재료 대부분(파괴석/수호석 계열)은 100 단위 묶음으로 거래된다. `CurrentMinPrice`는 "묶음 1개(=BundleCount개)"의 최저가이며 개당 가격이 아니다. |
+  | `TradeRemainCount` | number \| null | |
+  | `YDayAvgPrice` | number | |
+  | `RecentPrice` | number | |
+  | `CurrentMinPrice` | number | 현재 거래소 최저가 (묶음 단위) |
+
+  이 endpoint는 Auctions API처럼 "허위 매물로 최저가가 왜곡될 수 있는" 원시 목록이 아니라,
+  API가 이미 집계한 `CurrentMinPrice`를 제공한다. 따라서 CLAUDE.md 섹션 5의
+  "하위 N건 분포 기반 대표값" 규칙은 **Auctions API 전용**으로 해석하고, Markets API는
+  `CurrentMinPrice`를 대표값으로 그대로 사용한다.
+- 구현 위치: `src/lib/lostark/endpoints.ts`(`marketsSearchPath`),
+  `src/lib/lostark/schemas.ts`(`marketItemSchema`, `marketSearchResponseSchema`),
+  `src/lib/lostark/client.ts`(`searchMarketItems`).
+- 재련 재료 카탈로그(이름/ID/카테고리 코드)는 `src/data/config/materialCategories.ts`에
+  실 API 조회로 확인된 33개 아이템 전체를 기록했다 (`CategoryCode: 50010`).
+
 ## 아직 대조하지 않은 endpoint
 
-Markets, Auctions, News, Characters(형제 캐릭터 목록), Gamecontents 등은 Phase 1
-범위(캐릭터 기본 정보 조회)에 포함되지 않아 아직 착수하지 않았다. 착수 시 이 문서에
-동일한 형식으로 추가한다.
+Auctions, News, Characters(형제 캐릭터 목록), Gamecontents 등은 아직 착수하지 않았다.
+착수 시 이 문서에 동일한 형식으로 추가한다.

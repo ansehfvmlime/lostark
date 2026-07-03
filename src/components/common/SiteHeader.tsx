@@ -11,6 +11,9 @@ export function SiteHeader() {
           <Link href="/character" className="hover:text-foreground">
             캐릭터 검색
           </Link>
+          <Link href="/calculators/material-cost" className="hover:text-foreground">
+            재료 구매 비용 계산기
+          </Link>
         </nav>
       </div>
     </header>

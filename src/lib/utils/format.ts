@@ -19,3 +19,13 @@ export function formatItemLevel(value: string | number): string {
   if (typeof value === "string") return value;
   return value.toLocaleString("ko-KR");
 }
+
+/** 골드 금액 표시용 포맷 (예: 128430 → "128,430 골드"). */
+export function formatGold(value: number): string {
+  return `${Math.round(value).toLocaleString("ko-KR")} 골드`;
+}
+
+/** 재료 수량 표시용 포맷 (예: 1234 → "1,234개"). */
+export function formatQuantity(value: number): string {
+  return `${Math.round(value).toLocaleString("ko-KR")}개`;
+}

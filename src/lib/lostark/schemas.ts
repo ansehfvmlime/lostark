@@ -38,3 +38,37 @@ export const characterNameSchema = z
   .max(30, "캐릭터명이 너무 깁니다.");
 
 export type CharacterNameInput = z.infer<typeof characterNameSchema>;
+
+/**
+ * POST /markets/items 응답 스키마. 실 API 호출로 필드를 확정했다 (docs/API_NOTES.md 참고,
+ * 확인일 2026-07-04).
+ *
+ * BundleCount: 묶음 판매 수량. CurrentMinPrice는 "묶음 1개(=BundleCount개)"의 최저가이며
+ * 개당 가격이 아니다 — 계산기에서 개당 가격으로 환산할 때 반드시 나눠야 한다.
+ */
+export const marketItemSchema = z
+  .object({
+    Id: z.number(),
+    Name: z.string(),
+    Grade: z.string(),
+    Icon: z.string().optional(),
+    BundleCount: z.number(),
+    TradeRemainCount: z.number().nullable().optional(),
+    YDayAvgPrice: z.number(),
+    RecentPrice: z.number(),
+    CurrentMinPrice: z.number(),
+  })
+  .passthrough();
+
+export type MarketItem = z.infer<typeof marketItemSchema>;
+
+export const marketSearchResponseSchema = z
+  .object({
+    PageNo: z.number(),
+    PageSize: z.number(),
+    TotalCount: z.number(),
+    Items: z.array(marketItemSchema),
+  })
+  .passthrough();
+
+export type MarketSearchResponse = z.infer<typeof marketSearchResponseSchema>;

@@ -8,3 +8,8 @@
 export function characterProfilePath(characterName: string): string {
   return `/armories/characters/${encodeURIComponent(characterName)}/profiles`;
 }
+
+/** POST /markets/items (CategoryCode 필수, ItemName은 부분 일치 검색) */
+export function marketsSearchPath(): string {
+  return "/markets/items";
+}
