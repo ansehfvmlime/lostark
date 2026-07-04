@@ -18,3 +18,12 @@ export function marketsSearchPath(): string {
 export function characterSiblingsPath(characterName: string): string {
   return `/characters/${encodeURIComponent(characterName)}/siblings`;
 }
+
+/**
+ * GET /armories/characters/{characterName}/arkpassive
+ * 공식 usage-guide 문서에는 없으나 실 API 호출로 200 응답을 확인했다
+ * (docs/API_NOTES.md 참고, 확인일 2026-07-04).
+ */
+export function characterArkPassivePath(characterName: string): string {
+  return `/armories/characters/${encodeURIComponent(characterName)}/arkpassive`;
+}

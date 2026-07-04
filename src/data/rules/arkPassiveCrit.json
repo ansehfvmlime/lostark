@@ -1,0 +1,51 @@
+[
+  {
+    "id": "ark-passive-evolution-sharp-sense-crit-rate",
+    "sourceType": "ARK_PASSIVE",
+    "target": "GLOBAL",
+    "match": { "nameIncludes": ["예리한 감각"] },
+    "effect": {
+      "stat": "CRIT_RATE",
+      "operation": "ADD_PERCENT_POINT",
+      "valueFrom": "TOOLTIP",
+      "unit": "PERCENT"
+    },
+    "confidence": "HIGH",
+    "description": "아크패시브 진화 2티어 예리한 감각 — 치명타 적중률 증가분만 반영 (진화형 피해분은 이 룰의 범위가 아니다).",
+    "verifiedAt": "2026-07-04",
+    "source": "TOOLTIP_PARSED"
+  },
+  {
+    "id": "ark-passive-evolution-decisive-blow-crit-rate",
+    "sourceType": "ARK_PASSIVE",
+    "target": "GLOBAL",
+    "match": { "nameIncludes": ["일격"] },
+    "effect": {
+      "stat": "CRIT_RATE",
+      "operation": "ADD_PERCENT_POINT",
+      "valueFrom": "TOOLTIP",
+      "unit": "PERCENT"
+    },
+    "confidence": "HIGH",
+    "description": "아크패시브 진화 3티어 일격 — 치명타 적중률 증가분만 반영. 방향성 공격 스킬 치명타 피해량 증가분은 스킬 메타데이터 판별 방법이 확인되지 않아(docs/COMBAT.md 섹션 7) 이 룰에서 다루지 않는다.",
+    "verifiedAt": "2026-07-04",
+    "source": "TOOLTIP_PARSED"
+  },
+  {
+    "id": "ark-passive-evolution-master",
+    "sourceType": "ARK_PASSIVE",
+    "target": "GLOBAL",
+    "match": { "nameIncludes": ["달인"] },
+    "effect": {
+      "stat": "CRIT_RATE",
+      "operation": "ADD_PERCENT_POINT",
+      "valueFrom": "TOOLTIP",
+      "unit": "PERCENT"
+    },
+    "condition": { "manualToggleRequired": true },
+    "confidence": "HIGH",
+    "description": "아크패시브 진화 4티어 달인 — tooltip에 표기된 수치는 5중첩 풀스택 기준이다. 상시 버프가 아니라 스킬 사용으로 트리거되는 10초 지속 스택형 버프이므로, 사용자가 입력한 스택 유지율(%)을 곱해 기대값에 반영한다 (0%/100% 이분법 금지, CLAUDE.md 섹션 7.7).",
+    "verifiedAt": "2026-07-04",
+    "source": "TOOLTIP_PARSED"
+  }
+]

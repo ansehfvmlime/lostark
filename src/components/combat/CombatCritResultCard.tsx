@@ -35,7 +35,11 @@ export function CombatCritResultCard({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Stat
-          label="최종 치명타 확률"
+          label={
+            result.result.critRateCapPercent < 100
+              ? `최종 치명타 확률 (상한 ${result.result.critRateCapPercent}%)`
+              : "최종 치명타 확률"
+          }
           value={`${result.result.finalCritRatePercent.toFixed(2)}%`}
         />
         <Stat
@@ -48,6 +52,13 @@ export function CombatCritResultCard({
           emphasize
         />
       </div>
+
+      {result.result.evolutionDamageFromOverflowPercent > 0 && (
+        <Stat
+          label="진화형 피해 (뭉툭한 가시 전환분, 기대 피해 배율 미포함)"
+          value={`+${result.result.evolutionDamageFromOverflowPercent.toFixed(2)}%`}
+        />
+      )}
 
       <div className="flex flex-col gap-2">
         <p className="text-xs font-medium text-muted-foreground">

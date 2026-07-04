@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { characterProfileSchema } from "./schemas";
+import { arkPassiveSchema, characterProfileSchema } from "./schemas";
 
 // 실캐릭터 raw JSON fixture 기반 파서 회귀 테스트 (CLAUDE.md 섹션 13).
 const fixturePath = path.resolve(
@@ -10,6 +10,14 @@ const fixturePath = path.resolve(
   "../../../tests/fixtures/character-profile-example.json"
 );
 const fixture = JSON.parse(readFileSync(fixturePath, "utf-8"));
+
+const arkPassiveFixturePath = path.resolve(
+  __dirname,
+  "../../../tests/fixtures/character-arkpassive-example.json"
+);
+const arkPassiveFixture = JSON.parse(
+  readFileSync(arkPassiveFixturePath, "utf-8")
+);
 
 describe("characterProfileSchema", () => {
   it("실제 API 응답 fixture를 검증에 통과시킨다", () => {
@@ -46,6 +54,22 @@ describe("characterProfileSchema", () => {
   it("null 응답(존재하지 않는 캐릭터)은 스키마 검증 대상이 아니다", () => {
     // client.ts에서 data === null은 스키마 검증 이전에 NOT_FOUND로 분기 처리한다.
     const result = characterProfileSchema.safeParse(null);
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("arkPassiveSchema", () => {
+  it("실제 API 응답 fixture를 검증에 통과시킨다", () => {
+    const result = arkPassiveSchema.safeParse(arkPassiveFixture.response);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.IsArkPassive).toBe(true);
+      expect(result.data.Effects?.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("null 응답(존재하지 않는 캐릭터)은 스키마 검증 대상이 아니다", () => {
+    const result = arkPassiveSchema.safeParse(null);
     expect(result.success).toBe(false);
   });
 });

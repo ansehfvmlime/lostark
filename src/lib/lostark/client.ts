@@ -1,14 +1,17 @@
 import "server-only";
 
 import {
+  characterArkPassivePath,
   characterProfilePath,
   characterSiblingsPath,
   marketsSearchPath,
 } from "./endpoints";
 import {
+  arkPassiveSchema,
   characterProfileSchema,
   characterSiblingsResponseSchema,
   marketSearchResponseSchema,
+  type ArkPassive,
   type CharacterProfile,
   type CharacterSibling,
   type MarketSearchResponse,
@@ -278,4 +281,39 @@ export async function getCharacterSiblings(
   }
 
   return { siblings: parsed.data, rateLimit };
+}
+
+export type CharacterArkPassiveResult = {
+  arkPassive: ArkPassive | null;
+  rateLimit: RateLimitInfo;
+};
+
+/**
+ * GET /armories/characters/{characterName}/arkpassive — 아크패시브(진화/깨달음/도약)
+ * 트리 데이터. 치명타 계산 Stage 2의 핵심 데이터 (docs/COMBAT.md 참고).
+ */
+export async function getCharacterArkPassive(
+  characterName: string
+): Promise<CharacterArkPassiveResult> {
+  const { data, rateLimit } = await requestLostArkApi(
+    characterArkPassivePath(characterName)
+  );
+
+  // profiles와 동일하게, 존재하지 않는 캐릭터는 HTTP 200 + null을 반환한다
+  // (실측 확인, 2026-07-04). 아크패시브 데이터가 없는 경우(구 시스템 잔존 캐릭터 등)와
+  // 구분하기 위해, 여기서는 "캐릭터를 못 찾음"만 null로 취급하고 상위에서 처리한다.
+  if (data === null) {
+    return { arkPassive: null, rateLimit };
+  }
+
+  const parsed = arkPassiveSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new LostArkApiError(
+      "INVALID_RESPONSE",
+      "아크패시브 정보 응답 형식이 예상과 다릅니다.",
+      { cause: parsed.error }
+    );
+  }
+
+  return { arkPassive: parsed.data, rateLimit };
 }

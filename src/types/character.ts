@@ -1,4 +1,8 @@
-import type { CharacterProfile, CharacterSibling } from "@/lib/lostark/schemas";
+import type {
+  ArkPassive,
+  CharacterProfile,
+  CharacterSibling,
+} from "@/lib/lostark/schemas";
 import type { ValueSource } from "@/types/calculation";
 
 /** GET /api/lostark/character/[name] 성공 응답 (src/app/api/lostark/character/[name]/route.ts) */
@@ -17,6 +21,14 @@ export type CharacterApiErrorResponse = {
 /** GET /api/lostark/character/[name]/siblings 성공 응답 */
 export type CharacterSiblingsResponse = {
   siblings: CharacterSibling[];
+  dataTimestamp: string;
+  cacheHit: boolean;
+  sources: ValueSource[];
+};
+
+/** GET /api/lostark/character/[name]/arkpassive 성공 응답 */
+export type CharacterArkPassiveResponse = {
+  arkPassive: ArkPassive;
   dataTimestamp: string;
   cacheHit: boolean;
   sources: ValueSource[];

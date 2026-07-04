@@ -111,3 +111,44 @@ export const characterSiblingSchema = z
 export type CharacterSibling = z.infer<typeof characterSiblingSchema>;
 
 export const characterSiblingsResponseSchema = z.array(characterSiblingSchema);
+
+/**
+ * GET /armories/characters/{characterName}/arkpassive 응답 스키마. 실 API 호출로
+ * 확정했다 (docs/API_NOTES.md, docs/COMBAT.md 참고, 확인일 2026-07-04).
+ *
+ * `Effects[]`는 캐릭터가 실제로 투자한(활성화된) 노드만 담고 있다 — 트리 전체가 아니다.
+ * `ToolTip`은 Stats.Tooltip과 달리 **문자열 안에 JSON(Element_XXX)이 있고 그 값 안에
+ * 다시 HTML이 섞인 구조**다 (CLAUDE.md 섹션 8 패턴). `Element_002`(보통 MultiTextBox
+ * 타입)의 `value`에 실제 효과 설명 텍스트가 들어있으며, `src/lib/lostark/tooltip.ts`의
+ * `parseElementTooltip`으로 파싱한다.
+ */
+export const arkPassiveEffectSchema = z
+  .object({
+    Name: z.string(),
+    Description: z.string(),
+    Icon: z.string().optional(),
+    ToolTip: z.string(),
+  })
+  .passthrough();
+
+export type ArkPassiveEffect = z.infer<typeof arkPassiveEffectSchema>;
+
+export const arkPassivePointSchema = z
+  .object({
+    Name: z.string(),
+    Value: z.number(),
+    Tooltip: z.string().optional(),
+    Description: z.string().optional(),
+  })
+  .passthrough();
+
+export const arkPassiveSchema = z
+  .object({
+    Title: z.string().optional(),
+    IsArkPassive: z.boolean(),
+    Points: z.array(arkPassivePointSchema).optional(),
+    Effects: z.array(arkPassiveEffectSchema).optional(),
+  })
+  .passthrough();
+
+export type ArkPassive = z.infer<typeof arkPassiveSchema>;

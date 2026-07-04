@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   LostArkApiError,
+  getCharacterArkPassive,
   getCharacterProfile,
   getCharacterSiblings,
   searchMarketItems,
@@ -268,6 +269,56 @@ describe("getCharacterSiblings", () => {
     );
 
     await expect(getCharacterSiblings("아무개")).rejects.toMatchObject({
+      type: "INVALID_RESPONSE",
+    });
+  });
+});
+
+describe("getCharacterArkPassive", () => {
+  beforeEach(() => {
+    process.env.LOSTARK_API_BASE_URL = "https://developer-lostark.game.onstove.com";
+    process.env.LOSTARK_API_JWT = "test-jwt";
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.LOSTARK_API_BASE_URL;
+    delete process.env.LOSTARK_API_JWT;
+  });
+
+  it("정상 응답을 ArkPassive로 파싱한다", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          Title: "오의난무",
+          IsArkPassive: true,
+          Points: [],
+          Effects: [],
+        })
+      )
+    );
+
+    const result = await getCharacterArkPassive("유우시");
+
+    expect(result.arkPassive?.IsArkPassive).toBe(true);
+  });
+
+  it("존재하지 않는 캐릭터(HTTP 200 + null body)는 arkPassive: null을 반환한다 (throw하지 않음)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(null)));
+
+    const result = await getCharacterArkPassive("없는캐릭터");
+
+    expect(result.arkPassive).toBeNull();
+  });
+
+  it("스키마와 맞지 않는 응답은 INVALID_RESPONSE로 변환한다", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse({ unexpected: "shape" }))
+    );
+
+    await expect(getCharacterArkPassive("아무개")).rejects.toMatchObject({
       type: "INVALID_RESPONSE",
     });
   });

@@ -1,15 +1,21 @@
 import { describe, expect, it } from "vitest";
 
 import { BASE_CRIT_DAMAGE_MULTIPLIER } from "@/data/config/combatConstants";
-import type { CharacterStat } from "@/lib/lostark/schemas";
+import type { ArkPassiveEffect, CharacterStat } from "@/lib/lostark/schemas";
 import characterFixture from "../../../../tests/fixtures/character-profile-example.json";
+import arkPassiveFixture from "../../../../tests/fixtures/character-arkpassive-example.json";
+import { detectBluntThornEvolution, parseArkPassiveEffects } from "./parser/arkPassive";
 import {
+  applyCritRateCeiling,
   buildCritRateContribution,
   calculateCombatCritResult,
   calculateExpectedDamageMultiplier,
   combineCritRateContributions,
   findStat,
 } from "./engine";
+
+const REAL_ARK_PASSIVE_EFFECTS = arkPassiveFixture.response
+  .Effects as ArkPassiveEffect[];
 
 const NOW = "2026-07-04T00:00:00.000Z";
 
@@ -197,5 +203,152 @@ describe("calculateCombatCritResult", () => {
       NOW
     );
     expect(result.dataTimestamp).toBe(NOW);
+  });
+
+  describe("Stage 2a — 아크패시브 진화 트리 반영 (실 fixture)", () => {
+    it("예리한 감각(+4.0%)/일격(+20.0%)이 반영되고 accuracyLevel이 올라간다", () => {
+      const stats = characterFixture.response.Stats as CharacterStat[];
+      const result = calculateCombatCritResult(
+        {
+          characterName: characterFixture.response.CharacterName,
+          className: characterFixture.response.CharacterClassName,
+          stats,
+          arkPassiveEffects: REAL_ARK_PASSIVE_EFFECTS,
+        },
+        NOW
+      );
+
+      // 26.19(치명 스탯) + 4.0(예리한 감각) + 20.0(일격) + 0(달인, 유지율 미입력=0%) = 50.19
+      expect(result.result.finalCritRatePercent).toBeCloseTo(50.19, 10);
+      expect(result.result.accuracyLevel).toBe("PARTIAL_CLASS_RULES");
+      expect(result.result.critRateCapPercent).toBe(80); // 뭉툭한 가시 감지
+      expect(result.result.evolutionDamageFromOverflowPercent).toBe(0); // 80% 미만이라 초과분 없음
+
+      const sourceNames = result.result.contributions.map((c) => c.sourceName);
+      expect(sourceNames.some((name) => name.includes("예리한 감각"))).toBe(true);
+      expect(sourceNames.some((name) => name.includes("일격"))).toBe(true);
+      expect(sourceNames.some((name) => name.includes("달인"))).toBe(true);
+    });
+
+    it("달인 스택 유지율(%)을 입력하면 그만큼만 반영한다", () => {
+      const stats = characterFixture.response.Stats as CharacterStat[];
+      const result = calculateCombatCritResult(
+        {
+          characterName: characterFixture.response.CharacterName,
+          className: characterFixture.response.CharacterClassName,
+          stats,
+          arkPassiveEffects: REAL_ARK_PASSIVE_EFFECTS,
+          masterNodeUptimePercent: 100,
+        },
+        NOW
+      );
+
+      // 26.19 + 4.0 + 20.0 + 1.4(달인 100% 유지) = 51.59
+      expect(result.result.finalCritRatePercent).toBeCloseTo(51.59, 10);
+    });
+
+    it("치명타 확률 상한(80%)을 초과하면 초과분이 진화형 피해로 전환된다", () => {
+      const highCritStat: CharacterStat = {
+        Type: "치명",
+        Value: "9999",
+        Tooltip: ["치명타 적중률이 95.00% 증가합니다."],
+      };
+
+      const result = calculateCombatCritResult(
+        {
+          characterName: "테스트",
+          className: "테스트직업",
+          stats: [highCritStat],
+          arkPassiveEffects: REAL_ARK_PASSIVE_EFFECTS,
+        },
+        NOW
+      );
+
+      // raw = 95 + 4.0(예리한 감각) + 20.0(일격) + 0(달인) = 119 → 80% 상한
+      expect(result.result.finalCritRatePercent).toBe(80);
+      // 초과분 39% × 150% = 58.5% (75% 상한 이내)
+      expect(result.result.evolutionDamageFromOverflowPercent).toBeCloseTo(
+        58.5,
+        10
+      );
+      expect(
+        result.warnings.some((w) => w.includes("뭉툭한 가시"))
+      ).toBe(true);
+      // 기대 피해 배율에는 진화형 피해가 포함되지 않는다 (80% 기준으로만 계산)
+      expect(result.result.value).toBeCloseTo(
+        calculateExpectedDamageMultiplier(80, BASE_CRIT_DAMAGE_MULTIPLIER.value),
+        10
+      );
+    });
+
+    it("아크패시브 데이터를 제공하지 않으면 Stage 1과 동일하게 BASIC으로 계산한다", () => {
+      const stats = characterFixture.response.Stats as CharacterStat[];
+      const result = calculateCombatCritResult(
+        {
+          characterName: characterFixture.response.CharacterName,
+          className: characterFixture.response.CharacterClassName,
+          stats,
+        },
+        NOW
+      );
+
+      expect(result.result.accuracyLevel).toBe("BASIC");
+      expect(result.result.finalCritRatePercent).toBe(26.19);
+      expect(result.result.critRateCapPercent).toBe(100);
+    });
+  });
+});
+
+describe("applyCritRateCeiling", () => {
+  it("뭉툭한 가시가 없으면 100% 상한만 적용한다", () => {
+    const result = applyCritRateCeiling(120, null);
+    expect(result.finalCritRatePercent).toBe(100);
+    expect(result.evolutionDamageFromOverflowPercent).toBe(0);
+    expect(result.critRateCapPercent).toBe(100);
+  });
+
+  it("뭉툭한 가시가 있으면 해당 상한을 적용하고 초과분을 전환한다", () => {
+    const bluntThorn = {
+      capPercent: 80,
+      conversionRatePercent: 150,
+      conversionCapPercent: 75,
+      sourceName: "뭉툭한 가시 (Lv.2)",
+    };
+
+    const result = applyCritRateCeiling(95, bluntThorn);
+    expect(result.finalCritRatePercent).toBe(80);
+    expect(result.evolutionDamageFromOverflowPercent).toBeCloseTo(22.5, 10); // (95-80)×1.5
+    expect(result.critRateCapPercent).toBe(80);
+  });
+
+  it("전환된 진화형 피해가 전환 상한을 넘으면 상한으로 clamp한다", () => {
+    const bluntThorn = {
+      capPercent: 80,
+      conversionRatePercent: 150,
+      conversionCapPercent: 75,
+      sourceName: "뭉툭한 가시 (Lv.2)",
+    };
+
+    // 초과분 50% × 150% = 75% → 정확히 상한과 같음
+    // 초과분 60% × 150% = 90% → 75%로 clamp
+    const result = applyCritRateCeiling(140, bluntThorn);
+    expect(result.evolutionDamageFromOverflowPercent).toBe(75);
+  });
+
+  it("음수 rawCritRate는 0으로 취급한다", () => {
+    const result = applyCritRateCeiling(-10, null);
+    expect(result.finalCritRatePercent).toBe(0);
+  });
+});
+
+describe("detectBluntThornEvolution × applyCritRateCeiling (실 fixture 통합)", () => {
+  it("실 fixture의 뭉툭한 가시 노드로 계산한 상한/전환값이 정확하다", () => {
+    const nodes = parseArkPassiveEffects(REAL_ARK_PASSIVE_EFFECTS);
+    const bluntThorn = detectBluntThornEvolution(nodes);
+    expect(bluntThorn).not.toBeNull();
+
+    const result = applyCritRateCeiling(100, bluntThorn);
+    expect(result.finalCritRatePercent).toBe(80);
+    expect(result.evolutionDamageFromOverflowPercent).toBeCloseTo(30, 10); // (100-80)×1.5
   });
 });
