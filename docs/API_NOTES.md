@@ -129,6 +129,92 @@ Zod 스키마(`src/lib/lostark/schemas.ts`)에 반영한 필드:
   `src/lib/lostark/client.ts`(`getCharacterSiblings`),
   `src/app/api/lostark/character/[name]/siblings/route.ts`.
 
+### `GET /armories/characters/{characterName}` 및 하위 armory endpoint들 (전투 계산 Stage 2 준비)
+
+- 확인일 2026-07-04. 공식 usage-guide 페이지는 `/armories/characters/{characterName}/profiles`
+  예시만 제공하고 나머지 하위 endpoint는 문서에 나열되어 있지 않아, 실 API를 직접
+  호출해 존재 여부와 구조를 확인했다 (CLAUDE.md 섹션 5: "API 문서에 없는 endpoint를
+  있다고 가정하지 않는다" — 가정이 아니라 실제로 호출해 200 응답을 받은 것만 기록한다).
+- 캐릭터당 armory 전체를 한 번에 받는 **결합 endpoint**가 존재한다:
+  `GET /armories/characters/{characterName}` (하위 경로 없음). 응답 최상위 키:
+
+  | 키 | 내용 |
+  |---|---|
+  | `ArmoryProfile` | 기존 `/profiles`와 동일한 프로필 + Stats |
+  | `ArmoryEquipment` | 장비 목록 (하위 endpoint `/equipment`와 동일) |
+  | `ArmoryAvatars` | 아바타 목록 |
+  | `ArmorySkills` | 스킬/트라이포드 목록 (하위 endpoint `/combat-skills`와 동일) |
+  | `ArmoryEngraving` | 구 각인 시스템 잔재 필드. 이 계정에서는 `Engravings: null`, `Effects: null`이고 `ArkPassiveEffects`만 채워져 있었다 — 아크패시브 도입 이후 이 필드가 실질적으로 대체된 것으로 보인다. |
+  | `ArmoryCard` | 카드 목록 + 세트 효과 (하위 endpoint `/cards`와 동일) |
+  | `ArmoryGem` | 보석 목록 |
+  | `ArkPassive` | **아크패시브 트리 전체** (진화/깨달음/도약 포인트 및 활성 노드 효과) — 전투(치명타) 계산의 핵심 데이터 |
+  | `ArkGrid` | 아크 그리드 코어 (하위 endpoint `/arkgrid`와 동일) |
+  | `ColosseumInfo` | PvP 전적 — 치명타 계산과 무관 |
+  | `Collectibles` | 수집품 포인트 — 치명타 계산과 무관 |
+
+  하위 endpoint(`/equipment`, `/avatars`, `/combat-skills`, `/engravings`, `/cards`,
+  `/gems`, `/colosseums`, `/collectibles`, `/arkgrid`)도 각각 개별 호출 시 200을
+  반환하며, 결합 endpoint의 해당 섹션과 동일한 형태를 반환한다. 캐릭터 검색 1회당
+  여러 섹션이 필요하면 결합 endpoint 1번 호출이 rate limit(분당 100회) 관리에 유리하다.
+
+- **`ArkPassive` 구조** (전투 계산 Stage 2에서 가장 중요):
+  ```json
+  {
+    "Title": "오의난무",
+    "IsArkPassive": true,
+    "Points": [{ "Name": "진화|깨달음|도약", "Value": number, "Tooltip": "...", "Description": "6랭크 30레벨" }],
+    "Effects": [
+      {
+        "Name": "진화|깨달음|도약",
+        "Description": "<FONT ...>진화</FONT> 1티어 <FONT ...>치명 Lv.11</FONT>",
+        "Icon": "...",
+        "ToolTip": "{\"Element_000\": {...}, \"Element_002\": {\"type\":\"MultiTextBox\",\"value\":\"치명이 550 증가합니다.||<BR>\"}}"
+      }
+    ]
+  }
+  ```
+  - `Effects[]`는 **현재 실제로 활성화된 노드만** 담겨 있다(트리 전체가 아니라 투자한
+    노드만). `Description`에서 티어(1~5티어)와 노드 이름·레벨을 정규식으로 뽑을 수
+    있다 (`"(\\d)티어"`, `"([가-힣 ]+) Lv\\.(\\d+)"`).
+  - `ToolTip`은 **문자열 안에 JSON이 있고 그 값 안에 다시 HTML 태그가 섞인 구조**다
+    (CLAUDE.md 섹션 8에서 예상한 패턴과 일치). `Element_002.value`(보통
+    `MultiTextBox` 타입)에 실제 효과 설명 텍스트가 들어있다. 이 프로젝트의 기존
+    `stripTooltipTags`로 태그 제거 후 `extractPercentAfterKeyword`로 재사용 가능하다
+    — 다만 이 JSON을 먼저 `JSON.parse`해서 `Element_002.value`를 꺼내는 파서가
+    별도로 필요하다 (Stats.Tooltip처럼 단순 문자열 배열이 아님).
+  - 실 캐릭터(유우시, 스트라이커, 확인일 2026-07-04)로 확인한 "진화" 트리 활성 노드와
+    치명타 관련 텍스트는 `docs/COMBAT.md` 섹션 2.2~2.5에 그대로 옮겨 기록했다.
+
+- **`Equipment[].Tooltip`, `Cards[].Tooltip`, `ArmorySkills[].Tooltip`도 동일한
+  "문자열 안의 JSON(Element_XXX) + 내부 HTML" 구조**를 쓴다. 반면 **`Tripods[].Tooltip`
+  (스킬의 트라이포드 목록)과 `ArmoryProfile.Stats[].Tooltip`은 JSON이 아니라 단순
+  태그 섞인 문자열(배열)** 이다 — 같은 API 안에서도 필드마다 tooltip 포맷이 다르므로,
+  파서를 만들 때 매번 실제 응답으로 형식을 재확인해야 한다.
+
+- **`Tripods[]` 구조** (스킬별 치명타 룰의 핵심):
+  ```json
+  { "Tier": 0, "Slot": 1, "Name": "암흑 공격", "IsSelected": false,
+    "Tooltip": "<font ...>공격의 치명타 적중률이 <FONT COLOR='#99ff99'>40.0%</FONT> 증가한다...</font>" }
+  ```
+  `IsSelected`로 실제 장착 여부를 판별할 수 있다 — 미선택 트라이포드의 효과를 반영하면
+  안 된다(CLAUDE.md 섹션 7.3 "특정 스킬 전용 효과는 해당 스킬의 계산에만 반영"의
+  전제조건). `Tooltip`은 단순 태그 문자열이라 기존 `extractPercentAfterKeyword`를
+  그대로 재사용할 수 있다.
+
+- **`ArmoryCard.Effects[]` 구조** (카드 세트 매칭의 핵심):
+  ```json
+  { "Index": 0, "CardSlots": [0,1,2],
+    "Items": [
+      { "Name": "세 우마르가 오리라 3세트", "Description": "가디언 토벌 시 ... 7.5% 감소" },
+      { "Name": "세 우마르가 오리라 3세트 (6각성합계)", "Description": "..." }
+    ]
+  }
+  ```
+  `Items[].Name`에 세트 이름과 "(N각성합계)" 임계값이 함께 들어있고, `Description`은
+  태그 없는 순수 텍스트다. 세트 효과 룰은 "세트 이름 + 필요 각성합계 이하 중 가장 높은
+  단계"로 매칭해야 한다 (예: 실제 각성합계가 8이면 "(6각성합계)"까지만 적용, "(9각성합계)"는
+  미적용).
+
 ## 게임 데이터 리서치 (콘텐츠 수익 계산기, Phase 5)
 
 `src/data/config/raids.ts`에 하드코딩한 카제로스 레이드 보상 데이터의 출처/신뢰도:
