@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { RaidReward } from "@/data/config/raids";
+import { RAID_REWARDS, type RaidReward } from "@/data/config/raids";
 import {
   calculateContentProfit,
   filterEligibleRaids,
@@ -330,5 +330,53 @@ describe("calculateContentProfit", () => {
   it("주 3회 제한 안내 문구를 항상 포함한다", () => {
     const result = calculateContentProfit({ characters: [] }, NOW);
     expect(result.warnings.some((w) => w.includes("주 3회"))).toBe(true);
+  });
+
+  it("실제 레이드 데이터(카제로스 종막)의 재료를 개당 시세로 정확히 환산한다", () => {
+    const finalAct = RAID_REWARDS.find((r) => r.id === "kazeros-act5-normal");
+    if (!finalAct) throw new Error("fixture raid not found");
+
+    const unitPrices: Record<string, number> = {
+      "운명의 파괴석": 500,
+      "운명의 수호석": 15,
+      "운명의 돌파석": 3000,
+    };
+
+    const result = calculateContentProfit(
+      {
+        characters: [
+          characterSelection({
+            raids: [
+              {
+                raidId: finalAct.id,
+                raidName: finalAct.raidName,
+                boundGold: finalAct.boundGold,
+                tradableGold: finalAct.tradableGold,
+                materials: finalAct.materials.map((material) => ({
+                  itemName: material.itemName,
+                  quantity: material.quantity,
+                  unitPrice: unitPrices[material.itemName] ?? 0,
+                  included: true,
+                  priceOrigin: "API" as const,
+                  priceFetchedAt: NOW,
+                })),
+              },
+            ],
+          }),
+        ],
+      },
+      NOW
+    );
+
+    const expectedMaterialGold = finalAct.materials.reduce(
+      (sum, material) =>
+        sum + Math.round(material.quantity * (unitPrices[material.itemName] ?? 0)),
+      0
+    );
+
+    expect(result.result.materialGoldTotal).toBe(expectedMaterialGold);
+    expect(result.result.value).toBe(
+      finalAct.boundGold + finalAct.tradableGold + expectedMaterialGold
+    );
   });
 });
