@@ -13,6 +13,25 @@ import { z } from "zod";
  * partial failure 원칙(CLAUDE.md 섹션 5): 이 스키마 검증에 실패해도 상위 route에서
  * 사용자 친화적 에러로 변환하고, 계산 로직 전체가 죽지 않도록 한다.
  */
+/**
+ * Stats[] 항목 스키마. 실 API 응답(tests/fixtures/character-profile-example.json,
+ * 수집일 2026-07-03)으로 구조를 확인했다. Tooltip은 Flash 스타일 태그
+ * (<textformat>/<font>)가 섞인 일반 문자열 배열이며, 장비/스킬 tooltip처럼
+ * "문자열 안의 JSON"은 아니다. 예: "치명" 스탯의 Tooltip 첫 줄에는 이미
+ * "치명타 적중률이 26.19% 증가합니다." 처럼 게임이 직접 변환한 최종 퍼센트가
+ * 들어있다 — 별도의 스탯→확률 변환 계수 없이 이 문구를 파싱해서 쓴다
+ * (src/lib/lostark/tooltip.ts, CLAUDE.md 섹션 7 Two-Layer 원칙).
+ */
+export const characterStatSchema = z
+  .object({
+    Type: z.string(),
+    Value: z.string(),
+    Tooltip: z.array(z.string()).optional(),
+  })
+  .passthrough();
+
+export type CharacterStat = z.infer<typeof characterStatSchema>;
+
 export const characterProfileSchema = z.object({
   CharacterName: z.string(),
   CharacterClassName: z.string(),
@@ -22,6 +41,7 @@ export const characterProfileSchema = z.object({
   ItemAvgLevel: z.union([z.string(), z.number()]),
   CharacterImage: z.string().optional(),
   ServerName: z.string().optional(),
+  Stats: z.array(characterStatSchema).optional(),
   // 확정되지 않은 나머지 필드는 버리지 않고 보존한다 (향후 검증 후 스키마 확장용).
 }).passthrough();
 

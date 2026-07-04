@@ -50,8 +50,9 @@ const CALCULATORS: CalculatorEntry[] = [
   {
     title: "치명타 전투 효율 계산기",
     description:
-      "각인·트라이포드·장비·아크패시브를 반영한 치명타 확률/기대 피해 계산 (준비 중)",
-    status: "planned",
+      "치명 스탯 기반 치명타 확률/기대 피해 배율을 계산합니다 (현재는 치명 스탯만 반영하는 기본 단계).",
+    href: "/calculators/combat",
+    status: "available",
   },
 ];
 
