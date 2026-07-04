@@ -2,18 +2,27 @@ import "server-only";
 
 import {
   characterArkPassivePath,
+  characterCardsPath,
+  characterCombatSkillsPath,
+  characterEquipmentPath,
   characterProfilePath,
   characterSiblingsPath,
   marketsSearchPath,
 } from "./endpoints";
 import {
   arkPassiveSchema,
+  armoryCardSchema,
   characterProfileSchema,
   characterSiblingsResponseSchema,
+  combatSkillsResponseSchema,
+  equipmentResponseSchema,
   marketSearchResponseSchema,
   type ArkPassive,
+  type ArmoryCard,
   type CharacterProfile,
   type CharacterSibling,
+  type CombatSkill,
+  type EquipmentItem,
   type MarketSearchResponse,
 } from "./schemas";
 
@@ -316,4 +325,91 @@ export async function getCharacterArkPassive(
   }
 
   return { arkPassive: parsed.data, rateLimit };
+}
+
+export type CharacterCardsResult = {
+  armoryCard: ArmoryCard | null;
+  rateLimit: RateLimitInfo;
+};
+
+/** GET /armories/characters/{characterName}/cards — 카드 목록 및 세트 효과. */
+export async function getCharacterCards(
+  characterName: string
+): Promise<CharacterCardsResult> {
+  const { data, rateLimit } = await requestLostArkApi(
+    characterCardsPath(characterName)
+  );
+
+  if (data === null) {
+    return { armoryCard: null, rateLimit };
+  }
+
+  const parsed = armoryCardSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new LostArkApiError(
+      "INVALID_RESPONSE",
+      "카드 정보 응답 형식이 예상과 다릅니다.",
+      { cause: parsed.error }
+    );
+  }
+
+  return { armoryCard: parsed.data, rateLimit };
+}
+
+export type CharacterEquipmentResult = {
+  equipment: EquipmentItem[] | null;
+  rateLimit: RateLimitInfo;
+};
+
+/** GET /armories/characters/{characterName}/equipment — 장비 목록 (팔찌 포함). */
+export async function getCharacterEquipment(
+  characterName: string
+): Promise<CharacterEquipmentResult> {
+  const { data, rateLimit } = await requestLostArkApi(
+    characterEquipmentPath(characterName)
+  );
+
+  if (data === null) {
+    return { equipment: null, rateLimit };
+  }
+
+  const parsed = equipmentResponseSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new LostArkApiError(
+      "INVALID_RESPONSE",
+      "장비 정보 응답 형식이 예상과 다릅니다.",
+      { cause: parsed.error }
+    );
+  }
+
+  return { equipment: parsed.data, rateLimit };
+}
+
+export type CharacterCombatSkillsResult = {
+  skills: CombatSkill[] | null;
+  rateLimit: RateLimitInfo;
+};
+
+/** GET /armories/characters/{characterName}/combat-skills — 스킬 및 트라이포드 선택 정보. */
+export async function getCharacterCombatSkills(
+  characterName: string
+): Promise<CharacterCombatSkillsResult> {
+  const { data, rateLimit } = await requestLostArkApi(
+    characterCombatSkillsPath(characterName)
+  );
+
+  if (data === null) {
+    return { skills: null, rateLimit };
+  }
+
+  const parsed = combatSkillsResponseSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new LostArkApiError(
+      "INVALID_RESPONSE",
+      "스킬 정보 응답 형식이 예상과 다릅니다.",
+      { cause: parsed.error }
+    );
+  }
+
+  return { skills: parsed.data, rateLimit };
 }

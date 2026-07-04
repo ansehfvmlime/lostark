@@ -1,25 +1,22 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
 // 실 API 응답 fixture를 재사용해 결정론적으로 검증한다 (character-search.spec.ts와 동일한
 // 이유: 라이브 API에 의존하면 실제 캐릭터 데이터가 바뀔 때 테스트가 흔들린다).
-const fixture = JSON.parse(
-  readFileSync(
-    path.resolve(__dirname, "../fixtures/character-profile-example.json"),
-    "utf-8"
-  )
-);
-const arkPassiveFixture = JSON.parse(
-  readFileSync(
-    path.resolve(__dirname, "../fixtures/character-arkpassive-example.json"),
-    "utf-8"
-  )
-);
+function loadFixture(name: string) {
+  return JSON.parse(
+    readFileSync(path.resolve(__dirname, `../fixtures/${name}`), "utf-8")
+  );
+}
 
-// 프로필 route(`.../character/{name}`)와 아크패시브 route(`.../character/{name}/arkpassive`)를
-// 구분해서 mock한다. glob의 `*`는 `/`를 넘어가지 않으므로 두 패턴은 서로 겹치지 않는다.
-function routeProfile(page: import("@playwright/test").Page, character: unknown) {
+const fixture = loadFixture("character-profile-example.json");
+const arkPassiveFixture = loadFixture("character-arkpassive-example.json");
+const equipmentFixture = loadFixture("character-equipment-example.json");
+
+// 각 armory 하위 route를 구분해서 mock한다. glob의 `*`는 `/`를 넘어가지 않으므로
+// `.../character/{name}`과 `.../character/{name}/xxx` 패턴은 서로 겹치지 않는다.
+function routeProfile(page: Page, character: unknown) {
   return page.route("**/api/lostark/character/*", (route) =>
     route.fulfill({
       status: 200,
@@ -34,10 +31,7 @@ function routeProfile(page: import("@playwright/test").Page, character: unknown)
   );
 }
 
-function routeArkPassive(
-  page: import("@playwright/test").Page,
-  effects: unknown[]
-) {
+function routeArkPassive(page: Page, effects: unknown[]) {
   return page.route("**/api/lostark/character/*/arkpassive", (route) =>
     route.fulfill({
       status: 200,
@@ -52,12 +46,73 @@ function routeArkPassive(
   );
 }
 
+function routeCards(page: Page, armoryCard: unknown) {
+  return page.route("**/api/lostark/character/*/cards", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        armoryCard,
+        dataTimestamp: "2026-07-03T12:00:00.000Z",
+        cacheHit: false,
+        sources: [],
+      }),
+    })
+  );
+}
+
+function routeEquipment(page: Page, equipment: unknown[]) {
+  return page.route("**/api/lostark/character/*/equipment", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        equipment,
+        dataTimestamp: "2026-07-03T12:00:00.000Z",
+        cacheHit: false,
+        sources: [],
+      }),
+    })
+  );
+}
+
+function routeCombatSkills(page: Page, skills: unknown[]) {
+  return page.route("**/api/lostark/character/*/combat-skills", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        skills,
+        dataTimestamp: "2026-07-03T12:00:00.000Z",
+        cacheHit: false,
+        sources: [],
+      }),
+    })
+  );
+}
+
+async function routeAllArmory(
+  page: Page,
+  options: {
+    character: unknown;
+    arkPassiveEffects?: unknown[];
+    cards?: unknown;
+    equipment?: unknown[];
+    skills?: unknown[];
+  }
+) {
+  await routeProfile(page, options.character);
+  await routeArkPassive(page, options.arkPassiveEffects ?? []);
+  await routeCards(page, options.cards ?? { Effects: [] });
+  await routeEquipment(page, options.equipment ?? []);
+  await routeCombatSkills(page, options.skills ?? []);
+}
+
 test.describe("치명타 전투 효율 계산기", () => {
-  test("치명 스탯 tooltip을 파싱해 치명타 확률과 기대 피해 배율을 계산한다 (아크패시브 노드 없음)", async ({
+  test("치명 스탯 tooltip을 파싱해 치명타 확률과 기대 피해 배율을 계산한다 (추가 데이터 없음)", async ({
     page,
   }) => {
-    await routeProfile(page, fixture.response);
-    await routeArkPassive(page, []);
+    await routeAllArmory(page, { character: fixture.response });
 
     await page.goto("/calculators/combat");
     await page
@@ -76,17 +131,21 @@ test.describe("치명타 전투 효율 계산기", () => {
     // 기대 피해 배율 = 0.2619*2 + 0.7381*1 = 1.2619 → 126.19%
     await expect(page.getByText("126.19%", { exact: true })).toBeVisible();
 
-    // 아크패시브 응답은 왔지만 치명타 관련 노드가 없어 반영된 기여가 없다 —
-    // 그래도 아크패시브 데이터를 시도했으므로 정확도는 "일부 룰 반영"이다.
-    await expect(page.getByText("정확도: 일부 룰 반영").first()).toBeVisible();
+    // 4개 armory 섹션을 모두 시도했으므로 accuracyLevel은 FULL_CLASS_RULES다
+    // (반영된 치명타 관련 효과가 없어도 "시도"했다는 사실 자체로 등급이 오른다).
+    await expect(
+      page.getByText("정확도: 아크패시브/카드/팔찌/트라이포드 반영").first()
+    ).toBeVisible();
     await expect(page.getByText("반영됨")).toBeVisible();
   });
 
   test("아크패시브 진화 노드(예리한 감각/일격/달인)가 반영되고 달인 유지율 입력으로 재계산된다", async ({
     page,
   }) => {
-    await routeProfile(page, fixture.response);
-    await routeArkPassive(page, arkPassiveFixture.response.Effects);
+    await routeAllArmory(page, {
+      character: fixture.response,
+      arkPassiveEffects: arkPassiveFixture.response.Effects,
+    });
 
     await page.goto("/calculators/combat");
     await page
@@ -126,8 +185,10 @@ test.describe("치명타 전투 효율 계산기", () => {
         },
       ],
     };
-    await routeProfile(page, highCritCharacter);
-    await routeArkPassive(page, arkPassiveFixture.response.Effects);
+    await routeAllArmory(page, {
+      character: highCritCharacter,
+      arkPassiveEffects: arkPassiveFixture.response.Effects,
+    });
 
     await page.goto("/calculators/combat");
     await page
@@ -143,14 +204,73 @@ test.describe("치명타 전투 효율 계산기", () => {
     await expect(page.getByText(/뭉툭한 가시/).first()).toBeVisible();
   });
 
+  test("카드 세트/팔찌/트라이포드/파티 시너지를 종합 반영한다", async ({
+    page,
+  }) => {
+    const cardsWithCrit = {
+      Effects: [
+        {
+          Index: 0,
+          CardSlots: [0, 1],
+          Items: [
+            { Name: "테스트 세트", Description: "치명타 적중률이 5.0% 증가한다." },
+          ],
+        },
+      ],
+    };
+    const skillsWithSelectedTripod = [
+      {
+        Name: "테스트 스킬",
+        Level: 1,
+        Type: "일반",
+        Tripods: [
+          {
+            Tier: 0,
+            Slot: 1,
+            Name: "테스트 트라이포드",
+            IsSelected: true,
+            Tooltip: "<font>치명타 적중률이 10.0% 증가한다.</font>",
+          },
+        ],
+      },
+    ];
+
+    await routeAllArmory(page, {
+      character: fixture.response,
+      arkPassiveEffects: arkPassiveFixture.response.Effects,
+      cards: cardsWithCrit,
+      equipment: equipmentFixture.response,
+      skills: skillsWithSelectedTripod,
+    });
+
+    await page.goto("/calculators/combat");
+    await page
+      .getByPlaceholder("캐릭터명을 입력하세요 (예: 유우시)")
+      .fill(fixture.response.CharacterName);
+    await page.getByRole("button", { name: "검색" }).click();
+
+    // 26.19(치명) + 24.0(예리한 감각+일격) + 5.0(카드) + 3.4(팔찌) = 58.59 (파티 시너지 전)
+    await expect(page.getByText("58.59%", { exact: true })).toBeVisible();
+    await expect(page.getByText("테스트 세트")).toBeVisible();
+    await expect(page.getByText("찬란한 구원자의 팔찌")).toBeVisible();
+
+    // 스킬별 breakdown 표: 58.59 + 10.0 = 68.59
+    await expect(page.getByText("테스트 스킬").first()).toBeVisible();
+    await expect(page.getByText("68.59%", { exact: true })).toBeVisible();
+
+    // 파티 시너지 체크박스 선택 → +10%
+    await page.getByText("스트라이커 · 오의난무 / 일격필살 (+10%)").click();
+    // 58.59 + 10(파티 시너지) = 68.59 (전역), 스킬별은 68.59 + 10 = 78.59
+    await expect(page.getByText("78.59%", { exact: true })).toBeVisible();
+  });
+
   test("치명 스탯이 없는 캐릭터는 0%로 계산하고 경고를 보여준다", async ({
     page,
   }) => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Stats만 제거하기 위한 구조 분해
     const { Stats, ...characterWithoutStats } = fixture.response;
 
-    await routeProfile(page, characterWithoutStats);
-    await routeArkPassive(page, []);
+    await routeAllArmory(page, { character: characterWithoutStats });
 
     await page.goto("/calculators/combat");
     await page

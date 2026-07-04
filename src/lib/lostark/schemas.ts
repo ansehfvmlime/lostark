@@ -152,3 +152,109 @@ export const arkPassiveSchema = z
   .passthrough();
 
 export type ArkPassive = z.infer<typeof arkPassiveSchema>;
+
+/**
+ * GET /armories/characters/{characterName}/cards 응답 스키마. 실 API 호출로 확정했다
+ * (docs/API_NOTES.md, docs/COMBAT.md 참고, 확인일 2026-07-04).
+ *
+ * `Effects[].Items[].Name`은 "세트이름" 또는 "세트이름 (N각성합계)" 형태다. 실 캐릭터로
+ * 검증한 결과, `Items[]`에는 **캐릭터의 현재 각성 합계 기준으로 이미 활성화된 임계값만**
+ * 나열된다(예: 카드 3장 각각 5각성 완료 → 합계 15 → "(15각성합계)"까지만 표시). 즉
+ * 이 계산기는 `Items[]`를 별도 필터링 없이 전부 "현재 적용 중"으로 취급하면 된다.
+ * `Description`은 태그 없는 순수 텍스트다.
+ */
+export const cardSetEffectItemSchema = z
+  .object({
+    Name: z.string(),
+    Description: z.string(),
+  })
+  .passthrough();
+
+export const cardSetEffectSchema = z
+  .object({
+    Index: z.number(),
+    CardSlots: z.array(z.number()),
+    Items: z.array(cardSetEffectItemSchema),
+  })
+  .passthrough();
+
+export const cardItemSchema = z
+  .object({
+    Slot: z.number(),
+    Name: z.string(),
+    Icon: z.string().optional(),
+    AwakeCount: z.number(),
+    AwakeTotal: z.number(),
+    Grade: z.string(),
+    Tooltip: z.string().optional(),
+  })
+  .passthrough();
+
+export const armoryCardSchema = z
+  .object({
+    Cards: z.array(cardItemSchema).nullable().optional(),
+    Effects: z.array(cardSetEffectSchema).nullable().optional(),
+  })
+  .passthrough();
+
+export type ArmoryCard = z.infer<typeof armoryCardSchema>;
+
+/**
+ * GET /armories/characters/{characterName}/equipment 응답 스키마. 실 API 호출로
+ * 확정했다 (docs/API_NOTES.md, docs/COMBAT.md 참고, 확인일 2026-07-04).
+ *
+ * `Tooltip`은 "문자열 안의 JSON(Element_XXX)" 구조다. 팔찌(`Type: "팔찌"`)의 옵션은
+ * 다른 장비처럼 `MultiTextBox` 타입이 아니라, `ItemPartBox` 타입 원소의 중첩된
+ * `value.Element_001`(제목 "팔찌 효과")에 들어있다 — `src/lib/lostark/tooltip.ts`의
+ * `extractItemPartBoxText`로 뽑는다.
+ */
+export const equipmentItemSchema = z
+  .object({
+    Type: z.string(),
+    Name: z.string(),
+    Icon: z.string().optional(),
+    Grade: z.string(),
+    Tooltip: z.string(),
+  })
+  .passthrough();
+
+export type EquipmentItem = z.infer<typeof equipmentItemSchema>;
+
+export const equipmentResponseSchema = z.array(equipmentItemSchema);
+
+/**
+ * GET /armories/characters/{characterName}/combat-skills 응답 스키마. 실 API 호출로
+ * 확정했다 (docs/API_NOTES.md, docs/COMBAT.md 참고, 확인일 2026-07-04).
+ *
+ * `Tripods[].Tooltip`은 Stats.Tooltip과 같은 단순 태그 문자열이다(JSON-in-string이
+ * 아님). `IsSelected: false`인 트라이포드의 효과는 절대 반영하면 안 된다 — 같은
+ * 슬롯(Tier/Slot)에서 하나만 선택 가능하므로, 필터링하지 않으면 미선택 효과까지
+ * 전부 합산하는 오류가 난다.
+ */
+export const tripodSchema = z
+  .object({
+    Tier: z.number(),
+    Slot: z.number(),
+    Name: z.string(),
+    Icon: z.string().optional(),
+    IsSelected: z.boolean(),
+    Tooltip: z.string().optional(),
+  })
+  .passthrough();
+
+export const combatSkillSchema = z
+  .object({
+    Name: z.string(),
+    Icon: z.string().optional(),
+    Level: z.number(),
+    Type: z.string(),
+    SkillType: z.number().optional(),
+    Tripods: z.array(tripodSchema).nullable().optional(),
+    Tooltip: z.string().optional(),
+  })
+  .passthrough();
+
+export type CombatSkill = z.infer<typeof combatSkillSchema>;
+export type Tripod = z.infer<typeof tripodSchema>;
+
+export const combatSkillsResponseSchema = z.array(combatSkillSchema);

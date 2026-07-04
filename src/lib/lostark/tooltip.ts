@@ -130,3 +130,34 @@ export function extractPercentFromElementTooltip(
   const text = extractMultiTextBoxText(parsed);
   return extractPercentAfterKeyword([text], keyword);
 }
+
+/**
+ * 파싱된 Element_XXX 맵에서 `ItemPartBox` 타입 원소 중 제목(`value.Element_000`)이
+ * `titleIncludes`를 포함하는 항목의 본문(`value.Element_001`)을 반환한다.
+ *
+ * 팔찌(BRACELET) 옵션이 이 구조를 쓴다 — 장비 tooltip은 여러 `ItemPartBox`를 가질 수
+ * 있고(예: "기본 효과", "추가 효과", "팔찌 효과", "아크 패시브 포인트 효과"), 제목으로
+ * 원하는 섹션만 구분해야 한다 (실 API 응답으로 확인, docs/API_NOTES.md 참고).
+ */
+export function extractItemPartBoxText(
+  parsed: Record<string, ParsedTooltipElement>,
+  titleIncludes: string
+): string | null {
+  for (const element of Object.values(parsed)) {
+    if (element?.type !== "ItemPartBox") continue;
+    const value = element.value as
+      | { Element_000?: unknown; Element_001?: unknown }
+      | null
+      | undefined;
+    if (
+      typeof value?.Element_000 !== "string" ||
+      typeof value?.Element_001 !== "string"
+    ) {
+      continue;
+    }
+    if (stripTooltipTags(value.Element_000).includes(titleIncludes)) {
+      return value.Element_001;
+    }
+  }
+  return null;
+}

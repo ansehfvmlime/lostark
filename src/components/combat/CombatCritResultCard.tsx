@@ -1,5 +1,13 @@
 import { ResultCard } from "@/components/common/ResultCard";
 import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import type { CombatCritResult } from "@/types/combat";
 
 type CombatCritResultCardProps = {
@@ -10,7 +18,7 @@ type CombatCritResultCardProps = {
 const ACCURACY_LABEL: Record<CombatCritResult["result"]["accuracyLevel"], string> = {
   BASIC: "기본(치명 스탯만)",
   PARTIAL_CLASS_RULES: "일부 룰 반영",
-  FULL_CLASS_RULES: "정밀 지원",
+  FULL_CLASS_RULES: "아크패시브/카드/팔찌/트라이포드 반영",
   MANUAL_ASSISTED: "수동 보정 반영",
 };
 
@@ -58,6 +66,42 @@ export function CombatCritResultCard({
           label="진화형 피해 (뭉툭한 가시 전환분, 기대 피해 배율 미포함)"
           value={`+${result.result.evolutionDamageFromOverflowPercent.toFixed(2)}%`}
         />
+      )}
+
+      {result.result.skillCritRates.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs font-medium text-muted-foreground">
+            스킬별 최종 치명타 확률 (선택된 치명타 트라이포드가 있는 스킬만 표시)
+          </p>
+          <div className="overflow-x-auto rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>스킬</TableHead>
+                  <TableHead className="text-right">트라이포드 보너스</TableHead>
+                  <TableHead className="text-right">최종 치명타 확률</TableHead>
+                  <TableHead className="text-right">기대 피해 배율</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {result.result.skillCritRates.map((skillRate) => (
+                  <TableRow key={skillRate.skillName}>
+                    <TableCell>{skillRate.skillName}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      +{skillRate.tripodBonusPercent.toFixed(2)}%
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {skillRate.finalCritRatePercent.toFixed(2)}%
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {(skillRate.expectedDamageMultiplier * 100).toFixed(2)}%
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
       )}
 
       <div className="flex flex-col gap-2">

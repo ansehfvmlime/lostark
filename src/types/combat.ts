@@ -89,6 +89,16 @@ export type CombatCritInput = {
   className: string;
   /** "달인" 노드가 감지된 경우, 사용자가 입력한 스택 유지율(%). 미입력 시 0으로 취급. */
   masterNodeUptimePercent?: number;
+  /** 사용자가 체크박스로 선택한 파티 시너지 옵션 id 목록 (data/config/partySynergies.ts 참고). */
+  partySynergyIds?: string[];
+};
+
+/** 특정 스킬의 최종 치명타 확률 (GLOBAL 합계 + 그 스킬의 선택된 트라이포드 보너스). */
+export type SkillCritRateBreakdown = {
+  skillName: string;
+  tripodBonusPercent: number;
+  finalCritRatePercent: number;
+  expectedDamageMultiplier: number;
 };
 
 export type CombatCritResultValue = {
@@ -106,6 +116,8 @@ export type CombatCritResultValue = {
    * 배율)에는 포함되지 않는 별도 수치다 — docs/COMBAT.md 섹션 6.3 참고.
    */
   evolutionDamageFromOverflowPercent: number;
+  /** 치명타 관련 트라이포드를 선택한 스킬들의 스킬별 최종 치명타 확률/기대 배율. */
+  skillCritRates: SkillCritRateBreakdown[];
 };
 
 export type CombatCritResult = CalculationResult<

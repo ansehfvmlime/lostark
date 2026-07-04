@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { BASE_CRIT_DAMAGE_MULTIPLIER } from "@/data/config/combatConstants";
-import type { ArkPassiveEffect, CharacterStat } from "@/lib/lostark/schemas";
+import { CRIT_RATE_PARTY_SYNERGIES } from "@/data/config/partySynergies";
+import type {
+  ArkPassiveEffect,
+  ArmoryCard,
+  CharacterStat,
+  CombatSkill,
+  EquipmentItem,
+} from "@/lib/lostark/schemas";
 import characterFixture from "../../../../tests/fixtures/character-profile-example.json";
 import arkPassiveFixture from "../../../../tests/fixtures/character-arkpassive-example.json";
 import { detectBluntThornEvolution, parseArkPassiveEffects } from "./parser/arkPassive";
@@ -350,5 +357,176 @@ describe("detectBluntThornEvolution × applyCritRateCeiling (실 fixture 통합)
     const result = applyCritRateCeiling(100, bluntThorn);
     expect(result.finalCritRatePercent).toBe(80);
     expect(result.evolutionDamageFromOverflowPercent).toBeCloseTo(30, 10); // (100-80)×1.5
+  });
+});
+
+describe("Stage 2b — 카드/팔찌/트라이포드/파티 시너지 반영", () => {
+  const REAL_EQUIPMENT: EquipmentItem[] = [
+    {
+      Type: "무기",
+      Name: "테스트 무기",
+      Grade: "고대",
+      Tooltip: JSON.stringify({
+        Element_005: {
+          type: "ItemPartBox",
+          value: { Element_000: "기본 효과", Element_001: "무기 공격력 +1000" },
+        },
+      }),
+    },
+    {
+      Type: "팔찌",
+      Name: "찬란한 구원자의 팔찌",
+      Grade: "고대",
+      Tooltip: JSON.stringify({
+        Element_005: {
+          type: "ItemPartBox",
+          value: {
+            Element_000: "팔찌 효과",
+            Element_001: "치명 +106<BR>치명타 적중률이 3.4% 증가한다.",
+          },
+        },
+      }),
+    },
+  ];
+
+  it("실 fixture(카드/트라이포드는 치명타 항목 없음, 팔찌만 있음)를 통합 반영한다", () => {
+    const stats = characterFixture.response.Stats as CharacterStat[];
+    const result = calculateCombatCritResult(
+      {
+        characterName: characterFixture.response.CharacterName,
+        className: characterFixture.response.CharacterClassName,
+        stats,
+        arkPassiveEffects: REAL_ARK_PASSIVE_EFFECTS,
+        equipment: REAL_EQUIPMENT,
+        armoryCard: { Effects: [] },
+        skills: [],
+      },
+      NOW
+    );
+
+    // 26.19(치명) + 4.0(예리한 감각) + 20.0(일격) + 0(달인) + 3.4(팔찌) = 53.59
+    expect(result.result.finalCritRatePercent).toBeCloseTo(53.59, 10);
+    expect(result.result.accuracyLevel).toBe("FULL_CLASS_RULES");
+    expect(
+      result.result.contributions.some((c) => c.sourceType === "BRACELET" && c.applied)
+    ).toBe(true);
+  });
+
+  it("카드 세트/트라이포드/파티 시너지를 합성 데이터로 종합 반영한다", () => {
+    const stats = characterFixture.response.Stats as CharacterStat[];
+    const armoryCard: ArmoryCard = {
+      Effects: [
+        {
+          Index: 0,
+          CardSlots: [0, 1],
+          Items: [
+            { Name: "테스트 세트", Description: "치명타 적중률이 5.0% 증가한다." },
+          ],
+        },
+      ],
+    };
+    const skills: CombatSkill[] = [
+      {
+        Name: "테스트 스킬",
+        Level: 1,
+        Type: "일반",
+        Tripods: [
+          {
+            Tier: 0,
+            Slot: 1,
+            Name: "테스트 트라이포드",
+            IsSelected: true,
+            Tooltip: "<font>치명타 적중률이 10.0% 증가한다.</font>",
+          },
+        ],
+      },
+    ];
+    const striker = CRIT_RATE_PARTY_SYNERGIES.find((s) => s.id === "striker")!;
+
+    const result = calculateCombatCritResult(
+      {
+        characterName: "테스트",
+        className: "스트라이커",
+        stats,
+        arkPassiveEffects: REAL_ARK_PASSIVE_EFFECTS,
+        armoryCard,
+        equipment: REAL_EQUIPMENT,
+        skills,
+        partySynergyIds: [striker.id],
+      },
+      NOW
+    );
+
+    // GLOBAL = 26.19(치명) + 24.0(예리한 감각+일격) + 5.0(카드) + 3.4(팔찌) + 10(파티 시너지) = 68.59
+    expect(result.result.finalCritRatePercent).toBeCloseTo(68.59, 10);
+    expect(result.result.accuracyLevel).toBe("FULL_CLASS_RULES");
+
+    expect(result.result.skillCritRates).toHaveLength(1);
+    const skillRate = result.result.skillCritRates[0]!;
+    expect(skillRate.skillName).toBe("테스트 스킬");
+    expect(skillRate.tripodBonusPercent).toBe(10.0);
+    // 68.59 + 10.0 = 78.59 (80% 상한 미만)
+    expect(skillRate.finalCritRatePercent).toBeCloseTo(78.59, 10);
+    expect(skillRate.expectedDamageMultiplier).toBeCloseTo(
+      calculateExpectedDamageMultiplier(78.59, BASE_CRIT_DAMAGE_MULTIPLIER.value),
+      10
+    );
+
+    expect(
+      result.result.contributions.some(
+        (c) => c.sourceType === "MANUAL" && c.sourceName.includes("스트라이커")
+      )
+    ).toBe(true);
+  });
+
+  it("아무 추가 데이터도 없으면 BASIC, 일부만 있으면 PARTIAL_CLASS_RULES다", () => {
+    const stats = characterFixture.response.Stats as CharacterStat[];
+
+    const basicResult = calculateCombatCritResult(
+      { characterName: "테스트", className: "테스트", stats },
+      NOW
+    );
+    expect(basicResult.result.accuracyLevel).toBe("BASIC");
+
+    const partialResult = calculateCombatCritResult(
+      {
+        characterName: "테스트",
+        className: "테스트",
+        stats,
+        arkPassiveEffects: REAL_ARK_PASSIVE_EFFECTS,
+      },
+      NOW
+    );
+    expect(partialResult.result.accuracyLevel).toBe("PARTIAL_CLASS_RULES");
+  });
+
+  it("스킬별 SKILL 기여는 전역 치명타 확률에 새지 않는다", () => {
+    const stats = characterFixture.response.Stats as CharacterStat[];
+    const skills: CombatSkill[] = [
+      {
+        Name: "스킬X",
+        Level: 1,
+        Type: "일반",
+        Tripods: [
+          {
+            Tier: 0,
+            Slot: 1,
+            Name: "트라이포드X",
+            IsSelected: true,
+            Tooltip: "<font>치명타 적중률이 99.0% 증가한다.</font>",
+          },
+        ],
+      },
+    ];
+
+    const result = calculateCombatCritResult(
+      { characterName: "테스트", className: "테스트", stats, skills },
+      NOW
+    );
+
+    // 스킬 전용 트라이포드 99%는 전역 최종 치명타 확률(26.19%)에 더해지면 안 된다.
+    expect(result.result.finalCritRatePercent).toBeCloseTo(26.19, 10);
+    // 대신 스킬별 breakdown에서만 반영된다.
+    expect(result.result.skillCritRates[0]?.tripodBonusPercent).toBe(99.0);
   });
 });

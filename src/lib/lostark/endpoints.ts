@@ -27,3 +27,18 @@ export function characterSiblingsPath(characterName: string): string {
 export function characterArkPassivePath(characterName: string): string {
   return `/armories/characters/${encodeURIComponent(characterName)}/arkpassive`;
 }
+
+/** GET /armories/characters/{characterName}/cards (실 API 호출로 확인, docs/API_NOTES.md 참고) */
+export function characterCardsPath(characterName: string): string {
+  return `/armories/characters/${encodeURIComponent(characterName)}/cards`;
+}
+
+/** GET /armories/characters/{characterName}/equipment (실 API 호출로 확인, docs/API_NOTES.md 참고) */
+export function characterEquipmentPath(characterName: string): string {
+  return `/armories/characters/${encodeURIComponent(characterName)}/equipment`;
+}
+
+/** GET /armories/characters/{characterName}/combat-skills (실 API 호출로 확인, docs/API_NOTES.md 참고) */
+export function characterCombatSkillsPath(characterName: string): string {
+  return `/armories/characters/${encodeURIComponent(characterName)}/combat-skills`;
+}

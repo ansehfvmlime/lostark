@@ -1,0 +1,75 @@
+{
+  "_meta": {
+    "collectedAt": "2026-07-04",
+    "gameVersion": "unknown (수집 시점에 공식 patch note 대조 안 함 — 추후 검증 필요)",
+    "endpoint": "GET /armories/characters/{characterName}/cards",
+    "source": "developer-lostark.game.onstove.com 실 API 응답 (공개 랭킹 캐릭터, 유우시/스트라이커)",
+    "note": "Cards 배열은 용량 절감을 위해 앞 2장만 남겼다. Effects는 실 응답 그대로다 — 이 캐릭터의 카드 세트(세 우마르가 오리라 3세트, 라제니스의 운명 2세트)에는 치명타 적중률 효과가 없어, 'applied: true' 경로는 합성 데이터로 별도 단위 테스트에서 검증한다. 카드 3장(각 5/5 각성) 합계 15가 '(15각성합계)' 최고 임계값과 정확히 일치해, Items[]가 이미 현재 각성 합계 기준으로 필터링되어 내려온다는 것을 확인했다 (docs/COMBAT.md 섹션 5.3)."
+  },
+  "response": {
+    "Cards": [
+      {
+        "Slot": 0,
+        "Name": "에이케르",
+        "Icon": "https://cdn-lostark.game.onstove.com/efui_iconatlas/card_rare/card_rare_09_2.png",
+        "AwakeCount": 5,
+        "AwakeTotal": 5,
+        "Grade": "희귀"
+      },
+      {
+        "Slot": 1,
+        "Name": "나베르",
+        "Icon": "https://cdn-lostark.game.onstove.com/efui_iconatlas/card_rare/card_rare_09_3.png",
+        "AwakeCount": 5,
+        "AwakeTotal": 5,
+        "Grade": "희귀"
+      }
+    ],
+    "Effects": [
+      {
+        "Index": 0,
+        "CardSlots": [0, 1, 2],
+        "Items": [
+          {
+            "Name": "세 우마르가 오리라 3세트",
+            "Description": "가디언 토벌 시 가디언에게 받는 피해 7.5% 감소"
+          },
+          {
+            "Name": "세 우마르가 오리라 3세트 (6각성합계)",
+            "Description": "백어택 성공 시 적에게 주는 피해 2.0% 증가"
+          },
+          {
+            "Name": "세 우마르가 오리라 3세트 (9각성합계)",
+            "Description": "백어택 성공 시 적에게 주는 피해 3.0% 증가"
+          },
+          {
+            "Name": "세 우마르가 오리라 3세트 (15각성합계)",
+            "Description": "백어택 성공 시 적에게 주는 피해 7.0% 증가"
+          }
+        ]
+      },
+      {
+        "Index": 1,
+        "CardSlots": [3, 4],
+        "Items": [
+          {
+            "Name": "라제니스의 운명 2세트",
+            "Description": "모든 속성 피해 감소 +5.00%"
+          },
+          {
+            "Name": "라제니스의 운명 2세트 (4각성합계)",
+            "Description": "속성 피해 +2.00%"
+          },
+          {
+            "Name": "라제니스의 운명 2세트 (6각성합계)",
+            "Description": "공격 적중 시 일정 확률로 8초간 모든 속성 피해 6.0% 증가 (재사용 대기시간 32초)"
+          },
+          {
+            "Name": "라제니스의 운명 2세트 (10각성합계)",
+            "Description": "공격 적중 시 일정 확률로 8초간 모든 속성 피해 18.0% 증가 (재사용 대기시간 32초)"
+          }
+        ]
+      }
+    ]
+  }
+}

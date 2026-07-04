@@ -5,14 +5,25 @@ import { useState } from "react";
 import { CharacterSearchForm } from "@/components/character/CharacterSearchForm";
 import { CombatCritResultCard } from "@/components/combat/CombatCritResultCard";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CRIT_RATE_PARTY_SYNERGIES } from "@/data/config/partySynergies";
 import { calculateCombatCritResult } from "@/lib/calculators/combat/engine";
-import type { ArkPassiveEffect, CharacterStat } from "@/lib/lostark/schemas";
+import type {
+  ArkPassiveEffect,
+  ArmoryCard,
+  CharacterStat,
+  CombatSkill,
+  EquipmentItem,
+} from "@/lib/lostark/schemas";
 import type {
   CharacterApiErrorResponse,
   CharacterArkPassiveResponse,
+  CharacterCardsResponse,
+  CharacterCombatSkillsResponse,
+  CharacterEquipmentResponse,
   CharacterProfileResponse,
 } from "@/types/character";
 import type { CombatCritResult } from "@/types/combat";
@@ -22,6 +33,9 @@ type CharacterContext = {
   className: string;
   stats: CharacterStat[] | undefined;
   arkPassiveEffects: ArkPassiveEffect[] | undefined;
+  armoryCard: ArmoryCard | undefined;
+  equipment: EquipmentItem[] | undefined;
+  skills: CombatSkill[] | undefined;
   dataTimestamp: string;
 };
 
@@ -32,6 +46,7 @@ type CalcState =
       status: "success";
       context: CharacterContext;
       masterNodeUptimePercent: number;
+      partySynergyIds: string[];
       result: CombatCritResult;
     }
   | { status: "error"; message: string };
@@ -42,7 +57,8 @@ function hasMasterNodeContribution(result: CombatCritResult): boolean {
 
 function recompute(
   context: CharacterContext,
-  masterNodeUptimePercent: number
+  masterNodeUptimePercent: number,
+  partySynergyIds: string[]
 ): CombatCritResult {
   return calculateCombatCritResult(
     {
@@ -50,10 +66,31 @@ function recompute(
       className: context.className,
       stats: context.stats,
       arkPassiveEffects: context.arkPassiveEffects,
+      armoryCard: context.armoryCard,
+      equipment: context.equipment,
+      skills: context.skills,
       masterNodeUptimePercent,
+      partySynergyIds,
     },
     context.dataTimestamp
   );
+}
+
+/** armory 하위 endpoint 하나를 조회한다. 실패해도 undefined를 반환할 뿐 throw하지
+ * 않는다 — 각 섹션의 실패가 전체 계산을 막지 않는다(CLAUDE.md 섹션 5 partial failure). */
+async function fetchArmorySection<TResponse>(
+  characterName: string,
+  path: string
+): Promise<TResponse | undefined> {
+  try {
+    const response = await fetch(
+      `/api/lostark/character/${encodeURIComponent(characterName)}${path}`
+    );
+    if (!response.ok) return undefined;
+    return (await response.json()) as TResponse;
+  } catch {
+    return undefined;
+  }
 }
 
 export default function CombatCritCalculatorPage() {
@@ -81,36 +118,42 @@ export default function CombatCritCalculatorPage() {
 
       const profileData = (await profileResponse.json()) as CharacterProfileResponse;
 
-      // 아크패시브 조회 실패는 전체 계산을 막지 않고 BASIC 단계로 폴백한다
-      // (CLAUDE.md 섹션 5 partial failure 원칙).
-      let arkPassiveEffects: ArkPassiveEffect[] | undefined;
-      try {
-        const arkPassiveResponse = await fetch(
-          `/api/lostark/character/${encodeURIComponent(characterName)}/arkpassive`
-        );
-        if (arkPassiveResponse.ok) {
-          const arkPassiveData =
-            (await arkPassiveResponse.json()) as CharacterArkPassiveResponse;
-          arkPassiveEffects = arkPassiveData.arkPassive.Effects;
-        }
-      } catch {
-        // 무시하고 BASIC으로 진행
-      }
+      const [arkPassiveData, cardsData, equipmentData, combatSkillsData] =
+        await Promise.all([
+          fetchArmorySection<CharacterArkPassiveResponse>(
+            characterName,
+            "/arkpassive"
+          ),
+          fetchArmorySection<CharacterCardsResponse>(characterName, "/cards"),
+          fetchArmorySection<CharacterEquipmentResponse>(
+            characterName,
+            "/equipment"
+          ),
+          fetchArmorySection<CharacterCombatSkillsResponse>(
+            characterName,
+            "/combat-skills"
+          ),
+        ]);
 
       const context: CharacterContext = {
         characterName: profileData.character.CharacterName,
         className: profileData.character.CharacterClassName,
         stats: profileData.character.Stats,
-        arkPassiveEffects,
+        arkPassiveEffects: arkPassiveData?.arkPassive.Effects ?? undefined,
+        armoryCard: cardsData?.armoryCard,
+        equipment: equipmentData?.equipment,
+        skills: combatSkillsData?.skills,
         dataTimestamp: profileData.dataTimestamp,
       };
       const masterNodeUptimePercent = 0;
+      const partySynergyIds: string[] = [];
 
       setState({
         status: "success",
         context,
         masterNodeUptimePercent,
-        result: recompute(context, masterNodeUptimePercent),
+        partySynergyIds,
+        result: recompute(context, masterNodeUptimePercent, partySynergyIds),
       });
     } catch {
       setState({
@@ -126,7 +169,19 @@ export default function CombatCritCalculatorPage() {
     setState({
       ...state,
       masterNodeUptimePercent: clamped,
-      result: recompute(state.context, clamped),
+      result: recompute(state.context, clamped, state.partySynergyIds),
+    });
+  }
+
+  function handlePartySynergyToggle(id: string, checked: boolean) {
+    if (state.status !== "success") return;
+    const nextIds = checked
+      ? [...state.partySynergyIds, id]
+      : state.partySynergyIds.filter((existing) => existing !== id);
+    setState({
+      ...state,
+      partySynergyIds: nextIds,
+      result: recompute(state.context, state.masterNodeUptimePercent, nextIds),
     });
   }
 
@@ -135,9 +190,9 @@ export default function CombatCritCalculatorPage() {
       <div className="flex flex-col items-center gap-2 text-center">
         <h1 className="text-2xl font-semibold">치명타 전투 효율 계산기</h1>
         <p className="text-sm text-muted-foreground">
-          캐릭터명을 입력하면 프로필의 치명 스탯과 아크패시브 진화 트리를
-          기반으로 치명타 확률과 기대 피해 배율을 계산합니다. 트라이포드/카드/
-          팔찌/파티 시너지 등은 아직 반영되지 않습니다.
+          캐릭터명을 입력하면 치명 스탯, 아크패시브 진화 트리, 카드 세트, 팔찌,
+          선택된 트라이포드를 종합해 치명타 확률과 기대 피해 배율을 계산합니다.
+          파티 시너지는 API로 알 수 없어 아래에서 직접 선택해야 합니다.
         </p>
       </div>
 
@@ -159,6 +214,33 @@ export default function CombatCritCalculatorPage() {
 
       {state.status === "success" && (
         <>
+          <div className="flex w-full max-w-xl flex-col gap-2 rounded-lg border p-3">
+            <p className="text-sm font-medium">파티 시너지 (치명타 적중률)</p>
+            <p className="text-xs text-muted-foreground">
+              파티에서 아래 시너지를 받고 있다면 체크하세요. 수치는 커뮤니티
+              자료 기준이며 공식 문서로 확인되지 않았습니다.
+            </p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {CRIT_RATE_PARTY_SYNERGIES.map((option) => (
+                <label
+                  key={option.id}
+                  className="flex cursor-pointer items-center gap-2 text-sm"
+                >
+                  <Checkbox
+                    checked={state.partySynergyIds.includes(option.id)}
+                    onCheckedChange={(checked) =>
+                      handlePartySynergyToggle(option.id, checked)
+                    }
+                  />
+                  <span>
+                    {option.className} · {option.skillName} (+
+                    {option.critRatePercent}%)
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
           {hasMasterNodeContribution(state.result) && (
             <div className="w-full max-w-xl">
               <Label htmlFor="master-node-uptime">
