@@ -31,8 +31,9 @@ const CALCULATORS: CalculatorEntry[] = [
   {
     title: "강화/재련 기대 비용 계산기",
     description:
-      "장인의 기운 천장을 반영한 마르코프 체인 기반 기대 비용 계산 (준비 중)",
-    status: "planned",
+      "장인의 기운 천장을 반영한 점화식 기반 기대 비용, 최악 확정 비용, 백분위수 시나리오를 계산합니다.",
+    href: "/calculators/honing-cost",
+    status: "available",
   },
   {
     title: "보석 효율 계산기",
